@@ -18,7 +18,7 @@ from bluesky_gym.utils import logger
 
 bluesky_gym.register_envs()
 
-env_name = 'StaticObstacleEnv-v0'
+env_name = 'StaticObstacleSectorEnv-v0'
 algorithm = SAC
 
 # Initialize logger
@@ -26,13 +26,13 @@ log_dir = f'./logs/{env_name}/'
 file_name = f'{env_name}_{str(algorithm.__name__)}.csv'
 csv_logger_callback = logger.CSVLoggerCallback(log_dir, file_name)
 
-TRAIN = False
+TRAIN = True
 EVAL_EPISODES = 10
 
 
 if __name__ == "__main__":
-    env = gym.make(env_name, render_mode=None)
-    obs, info = env.reset()
+    env = gym.make(env_name, render_mode="human")
+    # obs, info = env.reset()
     model = algorithm("MultiInputPolicy", env, verbose=1,learning_rate=3e-4)
     if TRAIN:
         model.learn(total_timesteps=2e6, callback=csv_logger_callback)
