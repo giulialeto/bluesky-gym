@@ -6,3 +6,5 @@ images/
 logs/
 models/
 dist/
+bluesky_gym/envs/common/tools_deterministic_path_planning_old.py
+bluesky_gym/envs/common/deterministic_path_planning_old.py

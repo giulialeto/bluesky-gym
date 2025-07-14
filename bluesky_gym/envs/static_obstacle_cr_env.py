@@ -9,29 +9,10 @@ from bluesky.tools.aero import kts
 
 import gymnasium as gym
 from gymnasium import spaces
-def black(text):
-    print('\033[30m', text, '\033[0m', sep='')
 
-def red(text):
-    print('\033[31m', text, '\033[0m', sep='')
-
-def green(text):
-    print('\033[32m', text, '\033[0m', sep='')
-
-def yellow(text):
-    print('\033[33m', text, '\033[0m', sep='')
-
-def blue(text):
-    print('\033[34m', text, '\033[0m', sep='')
-
-def magenta(text):
-    print('\033[35m', text, '\033[0m', sep='')
-
-def cyan(text):
-    print('\033[36m', text, '\033[0m', sep='')
-
-def gray(text):
-    print('\033[90m', text, '\033[0m', sep='')
+import sys
+sys.path.append('/Users/Giulia/surfdrive - Giulia Leto@surfdrive.surf.nl/Documents/PhD/ω - Useful code')
+from GL_debugging import black, red, green, yellow, blue, magenta, cyan, gray
 
 DISTANCE_MARGIN = 5 # km
 REACH_REWARD = 1 # reach set waypoint
@@ -198,7 +179,7 @@ class StaticObstacleCREnv(gym.Env):
         reward, done, terminated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
-        red(info)
+        # red(info)
         return observation, reward, done, terminated, info
     
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_OTHER_AIRCRAFT):
@@ -378,20 +359,20 @@ class StaticObstacleCREnv(gym.Env):
     def _path_planning(self, num_other_aircraft = NUM_OTHER_AIRCRAFT):
         import pickle
 
-        # Saving the objects:
-        with open('de-bugging_obstacles/objs.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
-            obj0 = self.other_aircraft_names
-            obj1 = bs.traf.lat
-            obj2 = bs.traf.lon
-            obj3 = bs.traf.alt
-            obj4 = bs.traf.tas
-            obj5 = self.wpt_lat
-            obj6 = self.wpt_lon
-            obj7 = self.obstacle_vertices
-            pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+        # # Saving the objects:
+        # with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
+        #     obj0 = self.other_aircraft_names
+        #     obj1 = bs.traf.lat
+        #     obj2 = bs.traf.lon
+        #     obj3 = bs.traf.alt
+        #     obj4 = bs.traf.tas
+        #     obj5 = self.wpt_lat
+        #     obj6 = self.wpt_lon
+        #     obj7 = self.obstacle_vertices
+        #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # Getting back the objects:
-        with open('de-bugging_obstacles/objs-bugs-v2.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+        with open('de-bugging_obstacles/objs_new_bug_10.pkl', 'rb') as f:
             obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
 
         self.planned_path_other_aircraft = []

@@ -31,7 +31,7 @@ EVAL_EPISODES = 10
 
 
 if __name__ == "__main__":
-    env = gym.make(env_name, render_mode="human")
+    env = gym.make(env_name, render_mode=None)
     obs, info = env.reset()
     model = algorithm("MultiInputPolicy", env, verbose=1,learning_rate=3e-4)
     if TRAIN:
