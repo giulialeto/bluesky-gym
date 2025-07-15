@@ -372,7 +372,7 @@ class StaticObstacleCREnv(gym.Env):
         #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # Getting back the objects:
-        with open('de-bugging_obstacles/objs_new_bug_10.pkl', 'rb') as f:
+        with open('de-bugging_obstacles/objs_new_bug_9_origin_encircled.pkl', 'rb') as f:
             obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
 
         self.planned_path_other_aircraft = []

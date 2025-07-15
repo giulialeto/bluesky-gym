@@ -863,7 +863,7 @@ def isInside(position,obstacle):
         cos_angle = (vectorA * vectorB) / (vectorA.length() * vectorB.length())
         if debugging_printing_flag:
             red(f'cos_angle: {cos_angle}, vectorA: {vectorA.length()}, vectorB: {vectorB.length()}')
-        # cos_angle = max(-1.0, min(1.0, cos_angle))  # Bound to [-1, 1]
+        cos_angle = max(-1.0, min(1.0, cos_angle))  # Bound to [-1, 1]
         if debugging_printing_flag:
             print(f'cos_angle: {cos_angle}')
         angle.append(acos(cos_angle) * detSign(vectorA, vectorB))
@@ -934,3 +934,28 @@ def duplicatefilter(lst):
        if i not in unique:
            unique.append(i)
    return unique   
+
+
+from shapely.geometry import Polygon
+
+def merge_overlapping_obstacles(inputObs):
+    polygons = [Polygon(obs) for obs in inputObs]
+    merged = []
+
+    while polygons:
+        base = polygons.pop(0)
+        group = [base]
+
+        i = 0
+        while i < len(polygons):
+            if base.intersects(polygons[i]) or base.contains(polygons[i]) or polygons[i].contains(base):
+                base = base.union(polygons[i])
+                group.append(polygons[i])
+                polygons.pop(i)
+                i = 0  # restart
+            else:
+                i += 1
+
+        merged.append(base)
+
+    return [list(poly.exterior.coords[:-1]) for poly in merged]

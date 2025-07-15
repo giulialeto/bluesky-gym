@@ -26,7 +26,7 @@ Uses tools from "mytools.py" and "windfield.py".
 import matplotlib.pyplot as plt
 import numpy as np
 from bluesky_gym.envs.common.tools_deterministic_path_planning import Pos, LatLon2XY, XY2LatLon, processread,Obs,parse,obsReader,\
-Route,wyptannotate,callWinds,intersectionpt,specifywindfield
+Route,wyptannotate,callWinds,intersectionpt,specifywindfield, merge_overlapping_obstacles
 
 import sys
 sys.path.append('/Users/Giulia/surfdrive - Giulia Leto@surfdrive.surf.nl/Documents/PhD/ω - Useful code')
@@ -119,21 +119,31 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
     xmin = min(orig[1],dest[1])
     xmax = max(orig[1],dest[1])
     
-    obstacle_list_xy = []
-    # for each obstacle in the dictionary:
-    for i in range(len(inputObs)):
-        vertices_list_xy = []
-        for j in range(len(inputObs[i])):
-            (obY,obX) = inputObs[i][j]
-            ymin = min(ymin,obY)
-            ymax = max(ymax,obY)
-            xmin = min(xmin,obX)
-            xmax = max(xmax,obX)
-            # convert vertices to XY coordinates
-            vertices_list_xy.append(LatLon2XY(obY,obX))
+    # obstacle_list_xy = []
+    # # for each obstacle in the dictionary:
+    # for i in range(len(inputObs)):
+    #     vertices_list_xy = []
+    #     for j in range(len(inputObs[i])):
+    #         (obY,obX) = inputObs[i][j]
+    #         ymin = min(ymin,obY)
+    #         ymax = max(ymax,obY)
+    #         xmin = min(xmin,obX)
+    #         xmax = max(xmax,obX)
+    #         # convert vertices to XY coordinates
+    #         vertices_list_xy.append(LatLon2XY(obY,obX))
         
-        # if vertices_list_xy[0] != vertices_list_xy[-1]:
-        #     vertices_list_xy.append(vertices_list_xy[0])
+    #     # if vertices_list_xy[0] != vertices_list_xy[-1]:
+    #     #     vertices_list_xy.append(vertices_list_xy[0])
+    #     obstacle_list_xy.append(vertices_list_xy)
+
+    merged_obstacles = merge_overlapping_obstacles(inputObs)
+
+    obstacle_list_xy = []
+    for polygon in merged_obstacles:
+        vertices_list_xy = []
+        for lat, lon in polygon:
+            x, y = LatLon2XY(lat, lon)
+            vertices_list_xy.append((x, y))
         obstacle_list_xy.append(vertices_list_xy)
 
     # create obstacle dictionary (key is obstacle index)
