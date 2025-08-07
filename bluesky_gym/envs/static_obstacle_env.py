@@ -114,7 +114,9 @@ class StaticObstacleEnv(gym.Env):
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
 
-        self._generate_obstacles()
+        self.sample_obstacle = True
+        while self.sample_obstacle:
+            self._generate_obstacles()
         self._generate_waypoint()
 
         ac_idx = bs.traf.id2idx('KL001')
@@ -165,10 +167,14 @@ class StaticObstacleEnv(gym.Env):
         p = [fn.nm_to_latlong(centre, point) for point in p] # Convert to lat/long coordinateS
         return p_area, p, R
     
-    def _generate_obstacles(self):
+    def _generate_obstacles(self, acid = 'KL001'):
         # delete existing obstacles from previous episode in BlueSky
         for name in self.obstacle_names:
             bs.tools.areafilter.deleteArea(name)
+
+        obstacle_names = []
+        obstacle_vertices = []
+        obstacle_radius = []
 
         self.obstacle_names = []
         self.obstacle_vertices = []
@@ -176,21 +182,82 @@ class StaticObstacleEnv(gym.Env):
 
         self._generate_coordinates_centre_obstacles(num_obstacles = NUM_OBSTACLES)
 
+        obstacle_dict = {}  # Initialize the dictionary to store obstacles for overlap checking
+        ac_idx = bs.traf.id2idx(acid)
+
         for i in range(NUM_OBSTACLES):
+
             centre_obst = (self.obstacle_centre_lat[i], self.obstacle_centre_lon[i])
             _, p, R = self._generate_polygon(centre_obst)
             
             points = [coord for point in p for coord in point] # Flatten the list of points
             poly_name = 'restricted_area_' + str(i+1)
             bs.tools.areafilter.defineArea(poly_name, 'POLY', points)
-            self.obstacle_names.append(poly_name)
 
             obstacle_vertices_coordinates = []
             for k in range(0,len(points),2):
                 obstacle_vertices_coordinates.append([points[k], points[k+1]])
             
-            self.obstacle_vertices.append(obstacle_vertices_coordinates)
-            self.obstacle_radius.append(R)
+            overlap = bs.tools.areafilter.checkInside(poly_name, np.array([bs.traf.lat[ac_idx]]), np.array([bs.traf.lon[ac_idx]]), np.array([bs.traf.alt[ac_idx]]))[0]
+            if overlap:
+                self.sample_obstacle = True
+                return
+
+            obstacle_names.append(poly_name)
+            obstacle_vertices.append(obstacle_vertices_coordinates)
+            obstacle_radius.append(R)
+
+        for i in range(NUM_OBSTACLES):
+            overlap_list = []  # List to store overlap information
+            # Check for overlaps with existing obstacles
+            for j in range(NUM_OBSTACLES):
+                if i == j:
+                    continue  # Skip checking the same obstacle
+
+                found_overlap = False
+                for k in range(0, len(obstacle_vertices[j])):
+                    # check if the vertices of the obstacle are inside the other obstacles
+                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([bs.traf.alt[ac_idx]]))[0]
+                    if overlap:
+                        overlap_list.append(obstacle_names[j])
+                        break #break vertex loop
+                    # check if points along the edges of the obstacle are inside the other obstacles
+                    if k == len(obstacle_vertices[j]) -1:
+                        interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][0])
+                    else:
+                        interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][k+1])
+                    for point in interpolated_points:
+                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([bs.traf.alt[ac_idx]]))[0]
+                        if overlap:
+                            overlap_list.append(obstacle_names[j])
+                            found_overlap = True
+                            break # break interpolation loop
+                    if found_overlap:
+                        break
+        
+            obstacle_dict[obstacle_names[i]] = overlap_list
+        
+        max_overlaps_allowed = 1
+
+        too_many_overlapping_obstacles = any(len(overlaps) > max_overlaps_allowed for overlaps in obstacle_dict.values())
+
+        # print(f'Overlap information: {obstacle_dict}')
+
+        if too_many_overlapping_obstacles:
+            self.sample_obstacle = True
+        else:
+            self.sample_obstacle = False
+
+        # Store the generated obstacles in the environment
+        self.obstacle_names = obstacle_names
+        self.obstacle_vertices = obstacle_vertices
+        self.obstacle_radius = obstacle_radius
+
+    def _interpolate_along_obstacle_vertices(self, vertex_1, vertex_2, n=15):
+        """Interpolate n points between vertex_1 and vertex_2."""
+        lats = np.linspace(vertex_1[0], vertex_2[0], n)
+        lons = np.linspace(vertex_1[1], vertex_2[1], n)
+        return list(zip(lats, lons))
 
     def _generate_waypoint(self, acid = 'KL001'):
         # original _generate_waypoints function from horizotal_cr_env
