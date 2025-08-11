@@ -9,8 +9,6 @@ from bluesky.tools.aero import kts
 import gymnasium as gym
 from gymnasium import spaces
 
-
-
 DISTANCE_MARGIN = 5 # km
 
 REACH_REWARD = 1 # reach set waypoint
@@ -47,6 +45,7 @@ CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinat
 POLY_AREA_RANGE = (15000, 23001) # In NM^2
 
 MAX_DISTANCE = 350 # width of screen in km
+TOTAL_OBSERVATION_POINTS = 50 # Number of points to be observed along the sector polygon edges
 
 class StaticObstacleSectorEnv(gym.Env):
     """ 
@@ -71,7 +70,10 @@ class StaticObstacleSectorEnv(gym.Env):
                 "restricted_area_radius": spaces.Box(0, 1, shape = (NUM_OBSTACLES,), dtype=np.float64),
                 "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES, ), dtype=np.float64),
                 "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64),
-                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64)
+                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64),
+                "sector_points_distance": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_cos_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_sin_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64)
 
             }
         )
@@ -184,6 +186,47 @@ class StaticObstacleSectorEnv(gym.Env):
         points = [coord for point in p for coord in point] # Flatten the list of points
         # red(f'Polygon points: {p}')
         bs.tools.areafilter.defineArea('sector', 'POLY', points)
+
+    def _get_observation_polygon_edges(self, vertices, total_points=20):
+        """
+        Interpolates evenly along polygon edges to generate exactly `total_points` total points,
+        including original vertices.
+
+        Args:
+            vertices (np.ndarray): Polygon vertex coordinates, structures as [lat, lon].
+            total_points (int): Desired total number of points (vertices + interpolated).
+
+        Returns:
+            all_points (np.ndarray): All interpolated + original points, structures as [lat, lon].
+        """
+
+        num_edges = len(vertices)
+        points_to_interpolate = total_points - num_edges
+
+        # How many points per edge?
+        base_points = points_to_interpolate // num_edges
+        extra_points = points_to_interpolate % num_edges # remainder
+
+        all_points = []
+
+        for i in range(num_edges):
+            p1 = vertices[i]
+            p2 = vertices[(i + 1) % num_edges] # wrap around to first vertex
+
+            # Distribute remainder: first `extra_points` edges get one more
+            n_interp = base_points + (1 if i < extra_points else 0)
+
+            # Include original vertex
+            all_points.append(p1)
+
+            # Interpolate (exclude p2 so that next edge includes it)
+            for t in np.linspace(0, 1, n_interp + 2)[1:-1]:  # exclude 0 and 1
+                lat = p1[0] + t * (p2[0] - p1[0])
+                lon = p1[1] + t * (p2[1] - p1[1])
+                all_points.append([lat, lon])
+
+        return np.array(all_points)
+
 
     def _generate_polygon(self, centre):
         poly_area = np.random.randint(OBSTACLE_AREA_RANGE[0]*2, OBSTACLE_AREA_RANGE[1])
@@ -353,7 +396,13 @@ class StaticObstacleSectorEnv(gym.Env):
         self.obstacle_centre_distance = []
         self.obstacle_centre_cos_bearing = []
         self.obstacle_centre_sin_bearing = []
-            
+
+        # 
+        self.sector_points_distance = []
+        self.sector_points_cos_drift = []
+        self.sector_points_sin_drift = []
+
+
         self.ac_hdg = bs.traf.hdg[ac_idx]
         self.ac_tas = bs.traf.tas[ac_idx]
 
@@ -380,6 +429,26 @@ class StaticObstacleSectorEnv(gym.Env):
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
+        # Get vertices and points along the edges of the sector
+        sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
+
+        sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], sector_points[:,0], sector_points[:,1])
+        
+        # Convert distances to kilometers
+        self.sector_points_distance.append(sector_points_dis * NM2KM)
+
+        # Calculate drift for sector points
+        drift = self.ac_hdg - sector_points_qdr
+        drift_temp = []
+        for drift_angle in drift:
+            drift_angle = fn.bound_angle_positive_negative_180(drift_angle)
+            drift_temp.append(drift_angle)
+        drift = np.array(drift_temp)
+
+        # Calculate cosine and sine of the drift angles
+        self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift)))
+        self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift)))
+
         observation = {
                 "destination_waypoint_distance": np.array(self.destination_waypoint_distance)/WAYPOINT_DISTANCE_MAX,
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift),
@@ -388,6 +457,9 @@ class StaticObstacleSectorEnv(gym.Env):
                 "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
+                "sector_points_distance": np.array(self.sector_points_distance)/WAYPOINT_DISTANCE_MAX,
+                "sector_points_cos_drift": np.array(self.sector_points_cos_drift),
+                "sector_points_sin_drift": np.array(self.sector_points_sin_drift),
             }
 
         return observation
