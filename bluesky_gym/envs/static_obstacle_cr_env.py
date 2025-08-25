@@ -10,9 +10,7 @@ from bluesky.tools.aero import kts
 import gymnasium as gym
 from gymnasium import spaces
 
-import sys
-sys.path.append('/Users/Giulia/surfdrive - Giulia Leto@surfdrive.surf.nl/Documents/PhD/ω - Useful code')
-from GL_debugging import black, red, green, yellow, blue, magenta, cyan, gray
+from debug import black, red, green, yellow, blue, magenta, cyan, gray
 
 DISTANCE_MARGIN = 5 # km
 REACH_REWARD = 1 # reach set waypoint
@@ -126,7 +124,7 @@ class StaticObstacleCREnv(gym.Env):
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
 
-        bs.traf.cre('KL001',actype="A320",acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
 
         # defining screen coordinates
         # defining the reference point as the top left corner of the SQUARE screen
