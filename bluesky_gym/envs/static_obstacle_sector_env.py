@@ -88,7 +88,7 @@ class StaticObstacleSectorEnv(gym.Env):
 
         # initialize dummy screen and set correct sim speed
         bs.scr = ScreenDummy()
-        bs.stack.stack('DT 8;FF') ## DEBUGGING, should be 1
+        bs.stack.stack('DT 1;FF')
         
         # variables for logging
         self.total_reward = 0
@@ -115,24 +115,29 @@ class StaticObstacleSectorEnv(gym.Env):
 
         self._generate_sector() # Create airspace polygon
 
-        bs.traf.cre('KL001',actype="A320",acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
 
         # defining screen coordinates
         # defining the reference point as the top left corner of the SQUARE screen
         # from the initial position of the aircraft which is set to be the centre of the screen
         ac_idx = bs.traf.id2idx('KL001')
+
         d = np.sqrt(2*(MAX_DISTANCE/2)**2) #KM
         lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], 315, d/NM2KM)
-        
+                
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
 
+        # sample obstacles until a valid configuration is found (i.e. no overlaps and no initial intrusion)
         self.sample_obstacle = True
         while self.sample_obstacle:
             self._generate_obstacles()
+        
         self._generate_waypoint()
 
         ac_idx = bs.traf.id2idx('KL001')
         self.initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
+
+        # Set initial heading and track towards waypoint
         bs.traf.hdg[ac_idx] = self.initial_wpt_qdr
         bs.traf.ap.trk[ac_idx] = self.initial_wpt_qdr
 
@@ -180,7 +185,7 @@ class StaticObstacleSectorEnv(gym.Env):
 
         self.poly_points = np.array(p) # Polygon vertices are saved in terms of NM
 
-        p = [fn.nm_to_latlong(CENTER, point) for point in p] # Convert to lat/long coordinateS
+        p = [fn.nm_to_latlong(CENTER, point) for point in p] # Convert to lat/long coordinates
         self.poly_points_lat_lon = np.array(p) # Polygon vertices are saved in lat/lon coordinates
 
         points = [coord for point in p for coord in point] # Flatten the list of points
@@ -397,11 +402,9 @@ class StaticObstacleSectorEnv(gym.Env):
         self.obstacle_centre_cos_bearing = []
         self.obstacle_centre_sin_bearing = []
 
-        # 
         self.sector_points_distance = []
         self.sector_points_cos_drift = []
         self.sector_points_sin_drift = []
-
 
         self.ac_hdg = bs.traf.hdg[ac_idx]
         self.ac_tas = bs.traf.tas[ac_idx]
@@ -555,7 +558,7 @@ class StaticObstacleSectorEnv(gym.Env):
         canvas.fill((135,206,235))
 
         px_per_km = self.window_width/MAX_DISTANCE
-
+        ac_idx = bs.traf.id2idx('KL001')
         # # Draw the sector polygon test 1
         # airspace_color = (0, 0, 255)
         # coords = [((self.window_width/2)+point[1]*NM2KM*px_per_km, (self.window_height/2)-point[0]*NM2KM*px_per_km) for point in self.poly_points]
@@ -567,7 +570,6 @@ class StaticObstacleSectorEnv(gym.Env):
         for coord in self.poly_points_lat_lon:
             lat_ref = coord[0]
             lon_ref = coord[1]
-            # yellow(f'Lat: {lat_ref}, Lon: {lon_ref}')
             qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], lat_ref, lon_ref)
             dis = dis*NM2KM
             x_ref = ((np.sin(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_width
@@ -577,7 +579,7 @@ class StaticObstacleSectorEnv(gym.Env):
         pygame.draw.polygon(canvas, airspace_color, points, width=2)
 
         # draw ownship
-        ac_idx = bs.traf.id2idx('KL001')
+
         ac_length = 8
         heading_end_x = ((np.sin(np.deg2rad(bs.traf.hdg[ac_idx])) * ac_length)/MAX_DISTANCE)*self.window_width
         heading_end_y = ((np.cos(np.deg2rad(bs.traf.hdg[ac_idx])) * ac_length)/MAX_DISTANCE)*self.window_width
@@ -586,6 +588,7 @@ class StaticObstacleSectorEnv(gym.Env):
         dis = dis*NM2KM
         x_actor = ((np.sin(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_width
         y_actor = ((-np.cos(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_height
+
         pygame.draw.line(canvas,
             (235, 52, 52),
             (x_actor, y_actor),
