@@ -38,7 +38,8 @@ NUM_OBSTACLES = 10
 NUM_WAYPOINTS = 1
 
 OBSTACLE_AREA_RANGE = (50, 1000) # In NM^2
-CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
+# CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
+CENTER = (52., 4.) # TU Delft AE Faculty coordinates
 
 MAX_DISTANCE = 350 # width of screen in km
 
@@ -103,7 +104,7 @@ class StaticObstacleEnv(gym.Env):
         self.crashed = 0
         self.average_drift = np.array([])
 
-        bs.traf.cre('KL001',actype="A320",acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
 
         # defining screen coordinates
         # defining the reference point as the top left corner of the SQUARE screen
