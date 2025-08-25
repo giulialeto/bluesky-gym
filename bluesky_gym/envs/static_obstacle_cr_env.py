@@ -50,7 +50,8 @@ NUM_OTHER_AIRCRAFT = 5
 NUM_WAYPOINTS = NUM_OTHER_AIRCRAFT + 1
 
 POLY_AREA_RANGE = (50, 1000) # In NM^2
-CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
+# CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
+CENTER = (52., 4.) # TU Delft AE Faculty coordinates
 
 MAX_DISTANCE = 350 # width of screen in km
 
