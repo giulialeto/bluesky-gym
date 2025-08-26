@@ -15,8 +15,10 @@ from bluesky_gym.envs.common.wind_field_deterministic_path_planning import Windf
 
 from debug import black, red, green, yellow, blue, magenta, cyan, gray
 
-debugging_printing_flag = 1
+debugging_printing_flag = 0
 
+# enable logging on console
+console_logging_flag   = 0
 # Define windfield
 
 #################################################################
@@ -24,8 +26,8 @@ def specifywindfield(ymin,ymax,xmin,xmax):
     wind = Windfield()
 
     # wind.addpoint(lat,lon,winddir,windspd)
-    
-    print('specify windfield', ymin,ymax,xmin,xmax)
+    if console_logging_flag:
+        print('specify windfield', ymin,ymax,xmin,xmax)
       
     wind.addpoint(ymax,xmin,90.,150.) # deg, kts
     wind.addpoint(ymax,xmax,90.,150.)
@@ -103,22 +105,6 @@ class Obs:
     def intersectroute(self,routedef):
         intersectiontab = []
         (xwpts,ywpts) = list(zip(*routedef.waypoints))
-        # print(routedef.waypoints)
-        # for i in range(len(routedef.waypoints)-1):                     # iterate through all route segments
-        #     a = Pos((xwpts[i],ywpts[i]))
-        #     b = Pos((xwpts[i+1],ywpts[i+1]))
-    
-        #     for j in range(len(self.vert)):                         # iterate through obstacle segments
-        #         # red(j)
-        #         c = Pos((self.vert[j][0],self.vert[j][1]))
-        #         if j == (len(self.vert)-1):
-        #             # green(j) 
-        #             d = Pos((self.vert[0][0],self.vert[0][1]))
-        #         else:
-        #             d = Pos((self.vert[j+1][0],self.vert[j+1][1]))
-                
-        #         if notcolinear(a,b,c,d) and intersect(a,b,c,d):
-        #             intersectiontab.append([i,j])                     # i corresponds to route segment and j corresponds to obstacle segment
 
         for i in range(len(routedef.waypoints)-1):                     # iterate through all route segments
             a = Pos((xwpts[i],ywpts[i]))
@@ -130,14 +116,9 @@ class Obs:
                     intersectiontab.append([i,j])                     # i corresponds to route segment and j corresponds to obstacle segment
 
         return intersectiontab
+
     def resort(self,segList,parent,intersectTab):
         # vertices of first segment in obstacle segment list:
-        # ver1 = self.vert[segList[0]]
-        # if len(self.vert) == (segList[0]+1):
-        #     ver2 = self.vert[0]
-        # else:
-        #     ver2 = self.vert[segList[0]+1]
-
         ver1 = self.vert[segList[0]]
         ver2 = self.vert[segList[0]+1]
 
@@ -146,11 +127,6 @@ class Obs:
         rou1 = (xwpts[intersectTab[0][0]],ywpts[intersectTab[0][0]])
         rou2 = (xwpts[intersectTab[0][0]+1],ywpts[intersectTab[0][0]+1])
         # vertices of last segment in obstacle segment list:        
-        # ver3 = self.vert[segList[-1]]
-        # if len(self.vert) == (segList[-1]+1):
-        #     ver4 = self.vert[0]
-        # else:
-        #     ver4 = self.vert[segList[-1]+1]
         ver3 = self.vert[segList[-1]]
         ver4 = self.vert[segList[-1]+1]
 
@@ -164,69 +140,7 @@ class Obs:
         if check1.length() > check2.length():
             segList = list(reversed(segList))
         return segList
-    def leftalt_changed(self,segList):                  
-        altWptL = []                                               # waypoints along left alternative route
-        # (C) populate list of left alternative waypoints (make use of the fact that obstacle vertices are defined in clockwise order)
-        for i in range(len(segList)):
-            # make exception for last alternative waypoint to prevent "over-rotation" around obstacle
-            if i > 0 and  i == len(segList)-1:
-                if self.vert[segList[i]] not in altWptL:
-                    altWptL.append(self.vert[segList[i]])
-            else:
-                if len(self.vert) == (segList[i]+1):
-                    if self.vert[0] not in altWptL:                
-                        # append the larger of the two vertices to the list of left alternative waypoints
-                        altWptL.append(self.vert[0])
-                else:
-                    if self.vert[segList[i]+1] not in altWptL:                
-                        # append the larger of the two vertices to the list of left alternative waypoints
-                        altWptL.append(self.vert[segList[i]+1])
-        # (D) add additional obstacle vertices to list of left alternative waypoints, if necessary
-        # create empty lists:
-        indexLobs = []                                     # indices of obstacle vertices in altWptL
-        addL = []                                          # obstacle vertices to add to altWptL
-        # check for obstacle vertices in between consecutive altWptL entries
-        for i in range(len(altWptL)):
-            # populate list of indices of obstacle vertices in altWptL
-            indexLobs.append(self.vert.index(altWptL[i]))
-            # check if indices are consecutive; if not, need to evaluate further
-            if len(indexLobs)>=2 and abs(indexLobs[-1]-indexLobs[-2])%(len(self.vert)-1)>=2:
-            # note: total number of obstacle vertices is len(obs)-1 because last vertex is same as first
-                # define rngStp as difference between indices
-                if indexLobs[-1] < indexLobs[-2]:
-                    rngStp = len(self.vert)-indexLobs[-2]+indexLobs[-1]     # need to subtract 1!!!
-                else:
-                    rngStp = indexLobs[-1]-indexLobs[-2]
-                # iterate through obstacle vertices between previous and current altWptL
-                for j in range(1,rngStp):
-                    # define a and c as previous and current altWptL positions, respectively
-                    a = Pos((altWptL[i-1][0],altWptL[i-1][1]))
-                    c = Pos((altWptL[i][0],altWptL[i][1]))
-                    # define b as "in-between" vertex position, taking into account possible indexing exceptions
-                    if self.vert.index(altWptL[i-1])==len(self.vert)-1:
-                        bInd = 0
-                    else:
-                        bInd = self.vert.index(altWptL[i-1])
-                    if (bInd+j)>len(self.vert)-1:
-                        bArg = (bInd+j)%(len(self.vert)-1)-1
-                    else:
-                        bArg = bInd+j
-                    b = Pos((self.vert[bArg][0],self.vert[bArg][1]))
-                    # check direction of a,b,c sequence
-                    # append "in-between" vertex b to addL if direction is clockwise (i.e. not counterclockwise)
-                    if not ccw(a,b,c):
-                        addL.append(self.vert[bArg])        
-    ##                    print 'added waypoint'
-    ##                else:
-    ##                    print 'no point added to altWptL'
-                # insert addL list into altWptL
-                for ii in range(len(addL)):
-                    altWptL.insert(i+ii,addL[ii])
-    ##        else:
-    ##           print 'altWptR are consecutive vertices of obs'             
-        # make sure there are no duplicates in altWptL
-        alt = duplicatefilter(altWptL)
-        return alt
+
     def leftalt(self,segList):                  
         altWptL = []                                               # waypoints along left alternative route
         # (C) populate list of left alternative waypoints (make use of the fact that obstacle vertices are defined in clockwise order)
@@ -285,38 +199,7 @@ class Obs:
         # make sure there are no duplicates in altWptL
         alt = duplicatefilter(altWptL)
         return alt        
-    def extupdate_changed(self,alternativepts,destination):
-        # exit obstacle as soon as possible to go direct to destination
-        alt = list(alternativepts)      
-        toremove = []        
-        for i in range(len(alt)-1):
-            a = Pos((alt[-(i+1)-1][0],alt[-(i+1)-1][1]))
-            b = destination
-          #  b = Pos((destination[0],destination[1]))
-            intersection = []
-            for j in range(len(self.vert)):
-                c = Pos((self.vert[j][0],self.vert[j][1]))
-                if j == (len(self.vert)-1): 
-                    d = Pos((self.vert[0][0],self.vert[0][1]))
-                else:
-                    d = Pos((self.vert[j+1][0],self.vert[j+1][1]))
-                
-                if intersect(a,b,c,d) and notcolinear(a,b,c,d):
-                    intersection.append(j)
-            if not len(intersection):
-#                midptx = float(a.x) + (float(b.x)-float(a.x))/2
-#                midpty = float(a.y) + (float(b.y)-float(a.y))/2
-#                midpt = Pos((midptx,midpty))
-#                if not isInside(midpt,self):
-#                    toremove.append(-(i+1))
-                toremove.append(-(i+1))
-            if not len(toremove):
-                break
-        if len(toremove):
-            for i in range(len(toremove)):
-                indexfordeletion = toremove[i]                
-                del alt[indexfordeletion+i]  
-        return alt
+
     def extupdate(self,alternativepts,destination):
         # exit obstacle as soon as possible to go direct to destination
         alt = list(alternativepts)      
@@ -346,108 +229,6 @@ class Obs:
                 del alt[indexfordeletion+i]  
         return alt
         
-    def rightalt_changed(self,segList):
-        altWptR = []                                               # waypoints along left alternative route
-
-        index_start_vertex = segList[0]
-        print(segList)
-        if segList[1] == len(self.vert)-1:
-            index_closing_vertex = 0
-        else:
-            index_closing_vertex = segList[1]
-
-        if index_start_vertex == index_closing_vertex:
-            altWptR.append(self.vert[index_start_vertex])
-        elif index_start_vertex < index_closing_vertex:
-            for i in range(index_start_vertex, -1, -1):
-                altWptR.append(self.vert[i])
-            for i in range(len(self.vert)-1, index_closing_vertex+1, -1):
-                altWptR.append(self.vert[i])
-        else:
-            for i in range(index_start_vertex, index_closing_vertex+1, -1):
-                altWptR.append(self.vert[i])
-
-    #     # (C) populate list of right alternative waypoints (make use of the fact that obstacle vertices are defined in clockwise order)
-    #     for i in range(len(segList)):
-    #         red(i)
-    #         green(segList)
-    #         # make exception for last alternative waypoint to prevent "over-rotation" around obstacle
-    #         if i > 0 and i == len(segList)-1:
-    #             if len(self.vert) == (segList[i]+1):
-    #                 if self.vert[0] not in altWptR:
-    #                     altWptR.append(self.vert[0])
-    #             else:
-    #                 if self.vert[segList[i]+1] not in altWptR:
-    #                     altWptR.append(self.vert[segList[i]+1])
-    #         elif (i == 0):
-    #             red('WARNING!!!!!!!!!!!')
-    #             print(segList[i])
-    #             red(self.vert[segList[i]])
-    #             if self.vert[segList[i]] not in altWptR:
-    #             # append the smaller of the two vertices to the list of right alternative waypoints                   
-    #                 altWptR.append(self.vert[segList[i]])
-    #             green(segList[i])
-                
-    #         else:
-    #             red('WARNING!!!!!!!!!!!')
-    #             if self.vert[segList[i]] not in altWptR:
-    #             # append the smaller of the two vertices to the list of right alternative waypoints                   
-    #                 altWptR.append(self.vert[segList[i]])
-    #         # red(altWptR)
-    #         if segList[i] == 0:
-    #             if self.vert[-1] not in altWptR:
-    #                 altWptR.append(self.vert[-1])
-
-
-
-    #     # (D) add additional obstacle vertices to list of right alternative waypoints, if necessary
-    #     # create empty lists:
-    #     indexRobs = []                                         # indices of obstacle vertices in altWptR
-    #     addR = []                                              # obstacle vertices to add to altWptR
-    #     # check for obstacle vertices in between consecutive altWptR entries
-    #     for i in range(len(altWptR)):
-    #         # populate list of indices of obstacle vertices in altWptR
-    #         indexRobs.append(self.vert.index(altWptR[i]))
-    #         # magenta(indexRobs)
-    #         # check if indices are consecutive; if not, need to evaluate further
-    #         if len(indexRobs)>=2 and abs(indexRobs[-1]-indexRobs[-2])%(len(self.vert)-1)>=2:
-    #         # note: total number of obstacle vertices is len(obs)-1 because last vertex is same as first
-    #             # define rngStp as difference between indices
-    #             if indexRobs[-1] > indexRobs[-2]:
-    #                 rngStp = len(self.vert)-indexRobs[-1]+indexRobs[-2]       # need to subtract 1!!!
-    #             else:
-    #                 rngStp = abs(indexRobs[-1]-indexRobs[-2])
-    #             # iterate through obstacle vertices between previous and current altWptR
-    #             for j in range(1,rngStp):
-    #                 # define a and c as previous and current altWptR positions, respectively
-    #                 a = Pos((altWptR[i-1][0],altWptR[i-1][1]))
-    #                 c = Pos((altWptR[i][0],altWptR[i][1]))
-    #                 # define b as "in-between" vertex position, taking into account possible indexing exceptions
-    #                 if self.vert.index(altWptR[i-1])==0:
-    #                     bInd = len(self.vert)-1
-    #                 else:
-    #                     bInd = self.vert.index(altWptR[i-1])
-    #                 if (bInd-j)<0:
-    #                     bArg = len(self.vert)-1+(bInd-j)
-    #                 else:
-    #                     bArg = bInd-j
-    #                 b = Pos((self.vert[bArg][0],self.vert[bArg][1]))
-    #                 # check direction of a,b,c sequence
-    #                 # append "in-between" vertex b to addR if direction is counterclockwise
-    #                 if ccw(a,b,c):
-    #                     addR.append(self.vert[bArg])
-    # ##                    print 'added waypoint'
-    # ##                else:
-    # ##                    print 'no point added to altWptR'
-    #             # insert addR list into altWptR
-    #             for ii in range(len(addR)):
-    #                 altWptR.insert(i+ii,addR[ii])
-    # ##        else:
-    # ##            print 'altWptR are consecutive vertices of obs'      
-    #     # make sure there are no duplicates in altWptL
-    #     alt = duplicatefilter(altWptR)
-        alt = altWptR
-        return alt
     def rightalt(self,segList):
         altWptR = []                                               # waypoints along left alternative route
         # (C) populate list of right alternative waypoints (make use of the fact that obstacle vertices are defined in clockwise order)
@@ -534,29 +315,6 @@ class Obs:
         ax.annotate(int(number),xytext)
         return
     
-    # def plotter(self,fig,number):
-    #     #create code sequence to draw obstacles (with flexible number of vertices)
-    #     codes = []
-    #     codes.append(Path.MOVETO)
-    #     for j in range(1,len(self.vert)-1):
-    #         codes.append(Path.LINETO)
-    #     codes.append(Path.CLOSEPOLY)
-    #     #draw obstacle
-    #     path = Path(self.vert, codes)
-    #     ax = fig.add_subplot(111)
-    #     patch = patches.PathPatch(path,color='orange')
-    #     ax.add_patch(patch)
-    #     #label obstacle (place text somewhere near middle of obstacle)
-    #     obsX = []
-    #     obsY = []
-    #     for i in range(len(self.vert)-1):
-    #         obsX.append(self.vert[i][0])
-    #         obsY.append(self.vert[i][1])
-    #     xytext = (np.mean(obsX)-.1,np.mean(obsY))
-    #     ax.annotate(int(number),xytext)
-    #     return
-    
-
 class Route:
 #    allroutes = []
     active = []
@@ -645,52 +403,7 @@ class Route:
             self.rem(indexRem[j]-j)   
 #            self.numwpts = self.numwpts - 1
         return
-    def backwardcleanup_changed(self,obstacles,lstptindex):
-        # if no obstacle in the way, go direct!
-#        toconsider = self.waypoints[0:lstpt+1]        
-#        (xwpts,ywpts) = zip(*toconsider)
-        loopduration = lstptindex-1             # really it's (lstptindex + 1) - 2 because it's number waypoints - 2            
-        flag = 0
 
-        while not flag:
-            i = 0
-            removed = 0
-            while i < loopduration:
-                (xwpts,ywpts) = list(zip(*self.waypoints[0:loopduration+2]))
-                intersectiontab = []
-                a = Pos((xwpts[i],ywpts[i]))
-                b = Pos((xwpts[i+2],ywpts[i+2]))
-                for index in range(len(obstacles)):            
-                    for j in range(len(obstacles[index].vert)):                         # iterate through obstacle segments
-                        c = Pos((obstacles[index].vert[j][0],obstacles[index].vert[j][1]))
-                        if j == (len(obstacles[index].vert)-1): 
-                            d = Pos((obstacles[index].vert[0][0],obstacles[index].vert[0][1]))  
-                        else:
-                            d = Pos((obstacles[index].vert[j+1][0],obstacles[index].vert[j+1][1]))  
-                        if notcolinear(a,b,c,d) and intersect(a,b,c,d):       # if notcolinear(a,b,c,d) and intersect(a,b,c,d):
-                            intersectiontab.append(j)                            # i corresponds to route segment and j corresponds to obstacle segment                
-                    if not len(intersectiontab):
-#                        print 'test'                        
-#                        rndobs = []
-#                        for i in range(len(obstacles[index].vert)):
-#                            rnded = Pos(obstacles[index].vert[i]).rounded()
-#                            rndobs.append(rnded)
-#                            print rndobs
-#                        if (a.rounded() in rndobs) and (b.rounded() in rndobs):   
-#                            print 'got in!'
-                        midptx = float(a.x) + (float(b.x)-float(a.x))/2
-                        midpty = float(a.y) + (float(b.y)-float(a.y))/2
-                        midpt = Pos((midptx,midpty))
-                        if isInside(midpt,obstacles[index]):
-                            intersectiontab.append(index)
-                if not len(intersectiontab):
-                    self.rem(i+1)
-                    removed = 1
-                    loopduration = loopduration-1
-                i = i+1
-            if not removed:
-                flag = 1
-        return
     def backwardcleanup(self,obstacles,lstptindex):
         # if no obstacle in the way, go direct!
 #        toconsider = self.waypoints[0:lstpt+1]        
@@ -713,7 +426,6 @@ class Route:
                         if notcolinear(a,b,c,d) and intersect(a,b,c,d):       # if notcolinear(a,b,c,d) and intersect(a,b,c,d):
                             intersectiontab.append(j)                            # i corresponds to route segment and j corresponds to obstacle segment                
                     if not len(intersectiontab):
-#                        print 'test'                        
 #                        rndobs = []
 #                        for i in range(len(obstacles[index].vert)):
 #                            rnded = Pos(obstacles[index].vert[i]).rounded()
@@ -765,7 +477,6 @@ def parse(start,end):            # start and end inputs are from Pos class
     # store route information in dictionary structure
     return totalDist, heading, list(zip(xwpts,ywpts))
     
-    
 def callWinds(wind,route,altitude=0):
     # Call wind, with list for lat,lon and altitude:
     X,Y = list(zip(*route.waypoints))
@@ -785,58 +496,6 @@ def callWinds(wind,route,altitude=0):
     windsaloft = (vn,ve)                                         # windsaloft is vn, ve in kts   
     return windsaloft
     
-    
-
-# use example from plotting csv text file (see email Dec 8, 2015)
-def processread(filename): 
-#    f = open(filename)
-    f = filename
-    lines = f.readlines()
-    f.close()
-    lst = []
-    for line in lines:
-        if not line.startswith("#"):
-            words = [float(word) for word in line.split(",") if word is not None]
-            lst.append(words)           
-           # filter(None,words)
-           # for word in words:
-           #     lst.append(float(word))
-    return lst
-    
-def obsReader(filename):
-#    f = open(filename)
-    f = filename
-    content = f.read().splitlines()
-    f.close()
-    counter = 0
-    j = []
-    obstacles = []
-    for i in content:
-        if not i.startswith("#"):
-            if i.startswith("n"):
-                j.append(counter)        
-            else:
-                words = [float(word) for word in i.split(",")]
-                obstacles.append(words)
-            counter += 1
-    obstacleEdit = []
-    if not j:
-        obstacleEdit.append(obstacles)
-    else:
-        #START NEW LIST FOR EACH INDEX STORED IN J         
-        for indices in range(len(j)):  
-            if indices == 0:
-                obstacleEdit.append(obstacles[0:j[indices]])   
-                if len(j)>1:
-                    obstacleEdit.append(obstacles[j[indices]:j[indices+1]-1])
-                else:
-                    obstacleEdit.append(obstacles[j[indices]:])
-            elif indices == len(j)-1:
-                obstacleEdit.append(obstacles[j[indices]-indices:])
-            else:
-                obstacleEdit.append(obstacles[j[indices]-indices:j[indices+1]-indices-1])
-    return obstacleEdit
-
 def detSign(vector1,vector2):
     det = float(vector1.x)*float(vector2.y)-float(vector1.y)*float(vector2.x)
     if det != 0:
@@ -852,23 +511,13 @@ def isInside(position,obstacle):
         vectorB = position-Pos(obstacle.vert[i+1])
         # Equation (2) of Hormann 2001 Computational Geometry publication
         # computationally expensive version of calculating winding number
-        # print(position)
-        # yellow(obstacle.vert)
-        # black(vectorA.length()) ## debugging notes in some cases this vector has value 0
-        # red(vectorB.length())
-        # green((vectorA*vectorB)/(vectorA.length()*vectorB.length())) # therefore this becomes NAN
-        # green(detSign(vectorA,vectorB))
         cos_angle = (vectorA * vectorB) / (vectorA.length() * vectorB.length())
-        if debugging_printing_flag:
-            red(f'cos_angle: {cos_angle}, vectorA: {vectorA.length()}, vectorB: {vectorB.length()}')
-        cos_angle = max(-1.0, min(1.0, cos_angle))  # Bound to [-1, 1]
-        if debugging_printing_flag:
-            print(f'cos_angle: {cos_angle}')
+        # if debugging_printing_flag:
+        #     yellow(f'cos_angle before bounding: {cos_angle}')
+        # cos_angle = max(-1.0, min(1.0, cos_angle))  # Bound to [-1, 1]
+        # if debugging_printing_flag:
+        #     red(f'cos_angle after bounding: {cos_angle}')
         angle.append(acos(cos_angle) * detSign(vectorA, vectorB))
-        # angle.append(acos((vectorA*vectorB)/(vectorA.length()*vectorB.length()))*detSign(vectorA,vectorB))
-        # green(angle)
-        # if isnan(angle[-1]): # this doesn't make any physical sense. It's just a patch to see the obstacles and what is happening
-        #     angle[-1] = 1*detSign(vectorA,vectorB)
 
     try:
         if int(round(sum(angle)/(2*pi))) == 0:
@@ -876,9 +525,7 @@ def isInside(position,obstacle):
         else:
             inside = True
     except:
-        magenta('here: error that occurrs when vectorA or vectorB has length 0. This error does not occur when we bind cos_angle to [-1, 1], because cos_angle = nan is overwritten by cos_angle = 1. I dont know if it makes physical sense, and anyhow it causes the route to not be found. This bug should be investigated')
-        import code
-        code.interact(local= locals())
+        print('Error that occurrs when vectorA or vectorB has length 0. This error does not occur when we bind cos_angle to [-1, 1], because cos_angle = nan is overwritten by cos_angle = 1. I dont know if it makes physical sense, and anyhow it causes the route to not be found. This bug should be investigated')
     
     return inside
 
