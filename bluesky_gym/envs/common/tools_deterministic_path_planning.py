@@ -13,12 +13,13 @@ from matplotlib.path import Path
 import matplotlib.patches as patches
 from bluesky_gym.envs.common.wind_field_deterministic_path_planning import Windfield
 
-from debug import black, red, green, yellow, blue, magenta, cyan, gray
-
 debugging_printing_flag = 0
 
 # enable logging on console
 console_logging_flag   = 0
+if debugging_printing_flag:
+    console_logging_flag   = 1
+
 # Define windfield
 
 #################################################################
@@ -423,8 +424,13 @@ class Route:
                     for j in range(len(obstacles[index].vert)-1):                         # iterate through obstacle segments
                         c = Pos((obstacles[index].vert[j][0],obstacles[index].vert[j][1]))
                         d = Pos((obstacles[index].vert[j+1][0],obstacles[index].vert[j+1][1]))  
-                        if notcolinear(a,b,c,d) and intersect(a,b,c,d):       # if notcolinear(a,b,c,d) and intersect(a,b,c,d):
-                            intersectiontab.append(j)                            # i corresponds to route segment and j corresponds to obstacle segment                
+                        # If the straight line between waypoints i (a) and i+2 (b) intersects 
+                        # the obstacle edge (c,d), and the two segments are not just colinear 
+                        # lying on top of each other, then the middle waypoint i+1 cannot be 
+                        # removed, as it is needed to go around the obstacle. So we add it to the list of intersections.
+                        if notcolinear(a,b,c,d) and intersect(a,b,c,d):
+                            intersectiontab.append(j) # i corresponds to route segment and j corresponds to obstacle segment
+
                     if not len(intersectiontab):
 #                        rndobs = []
 #                        for i in range(len(obstacles[index].vert)):
@@ -436,8 +442,18 @@ class Route:
                         midptx = float(a.x) + (float(b.x)-float(a.x))/2
                         midpty = float(a.y) + (float(b.y)-float(a.y))/2
                         midpt = Pos((midptx,midpty))
-                        if isInside(midpt,obstacles[index]):
-                            intersectiontab.append(index)
+                        skip_check_inside = 0
+                        for l in range(len(obstacles[index].vert)-1):
+                            vectorA = midpt-Pos(obstacles[index].vert[l])
+                            vectorB = midpt-Pos(obstacles[index].vert[l+1])
+                            # if either vector has length 0, the midpoint between two waypoints 
+                            # in the trajectory is on a vertex of the obstacle. Therefore the 
+                            # waypoint in the middle can be removed and we can skip the isInside check
+                            if vectorA.length() == 0 or vectorB.length() == 0:
+                                skip_check_inside = 1
+                        if not skip_check_inside:
+                            if isInside(midpt,obstacles[index]):
+                                intersectiontab.append(index)
                 if not len(intersectiontab):
                     self.rem(i+1)
                     removed = 1
@@ -509,23 +525,17 @@ def isInside(position,obstacle):
     for i in range(len(obstacle.vert)-1):
         vectorA = position-Pos(obstacle.vert[i])
         vectorB = position-Pos(obstacle.vert[i+1])
+
         # Equation (2) of Hormann 2001 Computational Geometry publication
         # computationally expensive version of calculating winding number
-        cos_angle = (vectorA * vectorB) / (vectorA.length() * vectorB.length())
-        # if debugging_printing_flag:
-        #     yellow(f'cos_angle before bounding: {cos_angle}')
-        # cos_angle = max(-1.0, min(1.0, cos_angle))  # Bound to [-1, 1]
-        # if debugging_printing_flag:
-        #     red(f'cos_angle after bounding: {cos_angle}')
+        cos_angle = round((vectorA * vectorB) / (vectorA.length() * vectorB.length()),12)  # round to avoid floating point precision issues
+
         angle.append(acos(cos_angle) * detSign(vectorA, vectorB))
 
-    try:
-        if int(round(sum(angle)/(2*pi))) == 0:
-            inside = False
-        else:
-            inside = True
-    except:
-        print('Error that occurrs when vectorA or vectorB has length 0. This error does not occur when we bind cos_angle to [-1, 1], because cos_angle = nan is overwritten by cos_angle = 1. I dont know if it makes physical sense, and anyhow it causes the route to not be found. This bug should be investigated')
+    if int(round(sum(angle)/(2*pi))) == 0:
+        inside = False
+    else:
+        inside = True
     
     return inside
 

@@ -28,9 +28,6 @@ import numpy as np
 from bluesky_gym.envs.common.tools_deterministic_path_planning import Pos, LatLon2XY, XY2LatLon, Obs, parse,\
 Route,wyptannotate,callWinds,intersectionpt,specifywindfield
 
-from debug import black, red, green, yellow, blue, magenta, cyan, gray
-
-
 def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
     #################################################################
     # PRINTING OPTIONS

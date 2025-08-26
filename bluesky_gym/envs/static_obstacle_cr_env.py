@@ -10,8 +10,6 @@ from bluesky.tools.aero import kts
 import gymnasium as gym
 from gymnasium import spaces
 
-from debug import black, red, green, yellow, blue, magenta, cyan, gray
-
 from shapely.geometry import Polygon
 
 DISTANCE_MARGIN = 5 # km
@@ -384,7 +382,7 @@ class StaticObstacleCREnv(gym.Env):
         merged_obstacles_vertices = self.merge_overlapping_obstacles(self.obstacle_vertices)
 
         '''used for debugging'''
-        import pickle
+        # import pickle
 
         # # Saving the objects:
         # with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
@@ -399,20 +397,20 @@ class StaticObstacleCREnv(gym.Env):
         #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # # Getting back the objects:
-        with open('de-bugging_obstacles/objs_math_domain_error.pkl', 'rb') as f:
-            obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
+        # with open('de-bugging_obstacles/objs_new_bug_6_angle_nan.pkl', 'rb') as f:
+        #     obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
         '''END used for debugging'''
 
         self.planned_path_other_aircraft = []
 
         for i in range(num_other_aircraft): 
 
-            # ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
-            # planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], merged_obstacles_vertices)
+            ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
+            planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], merged_obstacles_vertices)
 
             '''used for debugging'''
-            ac_idx = bs.traf.id2idx(obj0[i])
-            planned_path_other_aircraft = path_plan.det_path_planning(obj1[ac_idx], obj2[ac_idx], obj3[ac_idx], obj4[ac_idx]/kts, obj5[i+1], obj6[i+1], obj7)
+            # ac_idx = bs.traf.id2idx(obj0[i])
+            # planned_path_other_aircraft = path_plan.det_path_planning(obj1[ac_idx], obj2[ac_idx], obj3[ac_idx], obj4[ac_idx]/kts, obj5[i+1], obj6[i+1], obj7)
             '''END used for debugging'''
 
             self.planned_path_other_aircraft.append(planned_path_other_aircraft)
