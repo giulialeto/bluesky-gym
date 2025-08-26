@@ -13,9 +13,7 @@ from matplotlib.path import Path
 import matplotlib.patches as patches
 from bluesky_gym.envs.common.wind_field_deterministic_path_planning import Windfield
 
-import sys
-sys.path.append('/Users/Giulia/surfdrive - Giulia Leto@surfdrive.surf.nl/Documents/PhD/ω - Useful code')
-from GL_debugging import black, red, green, yellow, blue, magenta, cyan, gray
+from debug import black, red, green, yellow, blue, magenta, cyan, gray
 
 debugging_printing_flag = 1
 
@@ -934,28 +932,3 @@ def duplicatefilter(lst):
        if i not in unique:
            unique.append(i)
    return unique   
-
-
-from shapely.geometry import Polygon
-
-def merge_overlapping_obstacles(inputObs):
-    polygons = [Polygon(obs) for obs in inputObs]
-    merged = []
-
-    while polygons:
-        base = polygons.pop(0)
-        group = [base]
-
-        i = 0
-        while i < len(polygons):
-            if base.intersects(polygons[i]) or base.contains(polygons[i]) or polygons[i].contains(base):
-                base = base.union(polygons[i])
-                group.append(polygons[i])
-                polygons.pop(i)
-                i = 0  # restart
-            else:
-                i += 1
-
-        merged.append(base)
-
-    return [list(poly.exterior.coords[:-1]) for poly in merged]

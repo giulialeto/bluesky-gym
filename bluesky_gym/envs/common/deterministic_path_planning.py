@@ -26,11 +26,9 @@ Uses tools from "mytools.py" and "windfield.py".
 import matplotlib.pyplot as plt
 import numpy as np
 from bluesky_gym.envs.common.tools_deterministic_path_planning import Pos, LatLon2XY, XY2LatLon, processread,Obs,parse,obsReader,\
-Route,wyptannotate,callWinds,intersectionpt,specifywindfield, merge_overlapping_obstacles
+Route,wyptannotate,callWinds,intersectionpt,specifywindfield
 
-import sys
-sys.path.append('/Users/Giulia/surfdrive - Giulia Leto@surfdrive.surf.nl/Documents/PhD/ω - Useful code')
-from GL_debugging import black, red, green, yellow, blue, magenta, cyan, gray
+from debug import black, red, green, yellow, blue, magenta, cyan, gray
 
 
 #from math import degrees
@@ -136,10 +134,8 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
     #     #     vertices_list_xy.append(vertices_list_xy[0])
     #     obstacle_list_xy.append(vertices_list_xy)
 
-    merged_obstacles = merge_overlapping_obstacles(inputObs)
-
     obstacle_list_xy = []
-    for polygon in merged_obstacles:
+    for polygon in inputObs:
         vertices_list_xy = []
         for lat, lon in polygon:
             x, y = LatLon2XY(lat, lon)

@@ -12,6 +12,8 @@ from gymnasium import spaces
 
 from debug import black, red, green, yellow, blue, magenta, cyan, gray
 
+from shapely.geometry import Polygon
+
 DISTANCE_MARGIN = 5 # km
 REACH_REWARD = 1 # reach set waypoint
 
@@ -445,9 +447,13 @@ class StaticObstacleCREnv(gym.Env):
 
         for i in range(num_other_aircraft): 
             # ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
-            # planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], self.obstacle_vertices)
+
+            # merged_obstacles_vertices = self.merge_overlapping_obstacles(self.obstacle_vertices)
+            # planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], merged_obstacles_vertices)
             # i = 1
             ac_idx = bs.traf.id2idx(obj0[i])
+
+            obj7 = self.merge_overlapping_obstacles(obj7)
             planned_path_other_aircraft = path_plan.det_path_planning(obj1[ac_idx], obj2[ac_idx], obj3[ac_idx], obj4[ac_idx]/kts, obj5[i+1], obj6[i+1], obj7)
             
             self.planned_path_other_aircraft.append(planned_path_other_aircraft)
@@ -458,6 +464,28 @@ class StaticObstacleCREnv(gym.Env):
                 # code.interact(local= locals())
                 bs.stack.stack(f"ADDWPT {self.other_aircraft_names[i]} {element[0]} {element[1]}")
 
+    def merge_overlapping_obstacles(self, inputObs):
+        polygons = [Polygon(obs) for obs in inputObs]
+        merged = []
+
+        while polygons:
+            base = polygons.pop(0)
+            group = [base]
+
+            i = 0
+            while i < len(polygons):
+                if base.intersects(polygons[i]) or base.contains(polygons[i]) or polygons[i].contains(base):
+                    base = base.union(polygons[i])
+                    group.append(polygons[i])
+                    polygons.pop(i)
+                    i = 0  # restart
+                else:
+                    i += 1
+
+            merged.append(base)
+
+        return [list(poly.exterior.coords[:-1]) for poly in merged]
+    
     def _get_obs(self):
         ac_idx = bs.traf.id2idx('KL001')
 
