@@ -204,7 +204,8 @@ class Obs:
     def extupdate(self,alternativepts,destination):
         # exit obstacle as soon as possible to go direct to destination
         alt = list(alternativepts)      
-        toremove = []        
+        toremove = []
+        # Iterate backwards through alternative waypoints
         for i in range(len(alt)-1):
             a = Pos((alt[-(i+1)-1][0],alt[-(i+1)-1][1]))
             b = destination
@@ -215,6 +216,8 @@ class Obs:
                 d = Pos((self.vert[j+1][0],self.vert[j+1][1]))
                 if intersect(a,b,c,d) and notcolinear(a,b,c,d):
                     intersection.append(j)
+                if (a.x, a.y) in self.vert:
+                    intersection.append(j)
             if not len(intersection):
 #                midptx = float(a.x) + (float(b.x)-float(a.x))/2
 #                midpty = float(a.y) + (float(b.y)-float(a.y))/2
@@ -222,6 +225,7 @@ class Obs:
 #                if not isInside(midpt,self):
 #                    toremove.append(-(i+1))
                 toremove.append(-(i+1))
+                
             if not len(toremove):
                 break
         if len(toremove):
@@ -315,7 +319,30 @@ class Obs:
         xytext = (np.mean(obsX)-.1,np.mean(obsY))
         ax.annotate(int(number),xytext)
         return
+
     
+
+    def label_vertices(self):
+        """
+        Create a dictionary assigning A, B, C, ... to the vertices in self.vert.
+
+        Returns:
+            vertex_labels (dict): Mapping like {'A': (x1, y1), 'B': (x2, y2), ...}
+        """
+        import string
+        labels = string.ascii_uppercase  # 'A', 'B', 'C', ...
+        vertex_labels = {}
+
+        for i, v in enumerate(self.vert):
+            label = labels[i-1] 
+            vertex_labels[label] = (v[0], v[1])
+        
+        # reverse mapping
+        vertex_labels = {v: k for k, v in vertex_labels.items()}
+        for vertex, label in vertex_labels.items():
+            print(f"{label}: vertex {vertex}")
+        return vertex_labels
+
 class Route:
 #    allroutes = []
     active = []

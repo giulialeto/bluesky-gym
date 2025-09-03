@@ -9,3 +9,5 @@ dist/
 bluesky_gym/envs/common/tools_deterministic_path_planning_old.py
 bluesky_gym/envs/common/deterministic_path_planning_old.py
 debug.py
+logs_backup/
+figures_results/

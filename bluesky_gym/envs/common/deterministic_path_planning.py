@@ -202,7 +202,8 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
         if console_logging_flag:
             print('length of active: ',len(Route.active))
 
-        if len(Route.active) > 50:
+        if len(Route.active) > 500:
+
             if plt_enable:
                 plt.show()
 
@@ -268,8 +269,11 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
             allintersections.append(obsDic_xy[obstacle].intersectroute(parent))
 
         if debugging_printing_flag:
-            print(f'allintersections', allintersections)
-        # if there are intersections, define branching obstacle as first encountered
+            print(f'allintersections with obstacle ', allintersections)
+            for obstacle in range(len(allintersections)):
+                if allintersections[obstacle]:
+                    print(f'all intersections with obstacle {obstacle} (route segment, obstacle segment): ', allintersections[obstacle])
+        # if there are intersections (if len is the same as if len > 0), define branching obstacle as first encountered
         if len([_f for _f in allintersections if _f]):
             # find index of obstacle in obsDic that will be encountered first
             firstseg = []
@@ -277,18 +281,23 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
                 rseg = []
                 if allintersections[obst]:  
                     for i in range(len(allintersections[obst])):
+                        # append the route segment index to rseg list
                         rseg.append(allintersections[obst][i][0])
+                        if debugging_printing_flag:
+                            print(f'rseg', rseg)
+                    # append the minimum  to firstseg list
                     firstseg.append(min(rseg))
                 else:
                     # firstseg.append('NaN')
                     firstseg.append(np.nan)
             # find index of minimum route segment in firstseg list
-            
+            if debugging_printing_flag:
+                print(f'firstseg', firstseg)
+
             # if the minimum value is in the list multiple times, calculate
             # intersection pts of each obstacle within that route segment and
             # select obstacle with least distance between route segment start and
             # point of intersection with obstacle
-            
             valid_firstseg = [f for f in firstseg if isinstance(f, int)]
             if firstseg.count(min(valid_firstseg)) > 1:
                 indices = [i for i, x in enumerate(firstseg) if x == min(valid_firstseg)]
@@ -309,32 +318,66 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
             # else just take index of minimum route segment in firstseglist
             else:
                 branch = firstseg.index(min(valid_firstseg))
-                
+
             # print which obstacle has been selected as branching obstacle
             if console_logging_flag:
                 print('branch obstacle', branch)
                 print('')
             
             intersectTab = allintersections[branch]
-        
+            if debugging_printing_flag:
+                print(f'intersectTab', intersectTab)
+
             # (A) populate list of obstacle segments that intersect with route segment
             segList = []                                           # empty list
             for index in range(len(intersectTab)):
                 segList.append(intersectTab[index][1])             # segList contains the smaller of the two obstacle indices defining the segment
+            if debugging_printing_flag:
+                print(f'segList', segList)
+            
             # (B) re-sort obstacle segment list here, in order of first-encountered       
             segList = obsDic_xy[branch].resort(segList,parent,intersectTab)
-
-            # yellow(segList)
+            if debugging_printing_flag:
+                print(f'segList resorted', segList)
             
             # (C) populate lists of left and right alternative waypoints
             # (make use of the fact that obstacle vertices are defined in clockwise order)
-        
+
+            if debugging_printing_flag:
+                vertices_labels = obsDic_xy[branch].label_vertices()
+
             altWptL = obsDic_xy[branch].leftalt(segList)
             altWptR = obsDic_xy[branch].rightalt(segList)
 
+            if debugging_printing_flag:
+                print("---")
+                for pt in altWptL:
+                    label = vertices_labels.get((pt[0], pt[1]), None)
+                    if label:
+                        print(f"altWptL contains {label}: {pt}")
+                print('---')
+                for pt in altWptR:
+                    label = vertices_labels.get((pt[0], pt[1]), None)
+                    if label:
+                        print(f"altWptR contains {label}: {pt}")
+                print("---")
+
+            # clean up alternative waypoint lists to ensure no repeated waypoints
             altWptLclean = obsDic_xy[branch].extupdate(altWptL,destination)
-            altWptRclean = obsDic_xy[branch].extupdate(altWptR,destination)
-            
+            altWptRclean = obsDic_xy[branch].extupdate(altWptR,destination)            
+
+            if debugging_printing_flag:
+                print("---")
+                for pt in altWptL:
+                    label = vertices_labels.get((pt[0], pt[1]), None)
+                    if label:
+                        print(f"altWptLclean contains {label}: {pt}")
+                print("---")
+                for pt in altWptR:
+                    label = vertices_labels.get((pt[0], pt[1]), None)
+                    if label:
+                        print(f"altWptRclean contains {label}: {pt}")
+                print("---")
 
             # (D) CREATE TRIAL ROUTES WITH PREVIOUSLY CALCULATED ALTERNATIVE WAYPOINTS
             # check which route segment contained the first intersection, insert alternative waypoints       
@@ -358,9 +401,9 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
             # should consider somehow adding the alt waypoints (and doing any other necessary changes, i.e. backward cleanup)
             # and THEN declaring it's a route (and thus adding it to active waypoint list)
             # need to do this as well for the routeR and directrt
-            Route.active[-1] = routeL
-            # Route.active.append(routeL)
-            
+            # Route.active[-1] = routeL
+            Route.active.append(routeL)
+
             # plot left route in red        
     #        leftpltX,leftpltY = zip(*routeL.waypoints)
     #        plt.plot(leftpltX,leftpltY,':',color='r')
@@ -379,8 +422,8 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
                 windsaloftR = [np.zeros(len(routeR.waypoints)),np.zeros(len(routeR.waypoints))]
             
             routeR.deviation = routeR.deviationcheck(parent,optimizationpriority,windsaloftR)
-            Route.active[-1] = routeR
-            # Route.active.append(routeR)
+            # Route.active[-1] = routeR
+            Route.active.append(routeR)
             
             # plot right route in green        
     #        rightpltX,rightpltY = zip(*routeR.waypoints)
