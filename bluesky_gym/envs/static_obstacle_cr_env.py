@@ -19,9 +19,6 @@ DRIFT_PENALTY = -0.01
 AC_INTRUSION_PENALTY = -5
 RESTRICTED_AREA_INTRUSION_PENALTY = -5
 
-NUM_INTRUDERS = 5
-INTRUSION_DISTANCE = 5 # NM
-
 WAYPOINT_DISTANCE_MIN = 180 # KM
 WAYPOINT_DISTANCE_MAX = 400 # KM
 
@@ -44,10 +41,11 @@ ACTION_FREQUENCY = 10
 
 ## for obstacles generation
 NUM_OBSTACLES = 10 #np.random.randint(1,5)
-NUM_OTHER_AIRCRAFT = 5
+NUM_INTRUDERS = 5
+INTRUSION_DISTANCE = 5 # NM
 
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
-NUM_WAYPOINTS = NUM_OTHER_AIRCRAFT + 1
+NUM_WAYPOINTS = NUM_INTRUDERS + 1
 
 POLY_AREA_RANGE = (50, 1000) # In NM^2
 # CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
@@ -208,7 +206,7 @@ class StaticObstacleCREnv(gym.Env):
 
         return observation, reward, done, terminated, info
     
-    def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_OTHER_AIRCRAFT):
+    def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
         self.other_aircraft_names = []
         for i in range(num_other_aircraft): 
             other_aircraft_name = 'AC' + str(i+1)
@@ -405,7 +403,7 @@ class StaticObstacleCREnv(gym.Env):
             self.obstacle_centre_lat.append(obstacle_centre_lat)
             self.obstacle_centre_lon.append(obstacle_centre_lon)
 
-    def _path_planning(self, num_other_aircraft = NUM_OTHER_AIRCRAFT):
+    def _path_planning(self, num_other_aircraft = NUM_INTRUDERS):
         '''used for debugging'''
         # import pickle
 
@@ -528,7 +526,7 @@ class StaticObstacleCREnv(gym.Env):
         self.destination_waypoint_sin_drift.append(np.sin(np.deg2rad(drift)))
 
         # other aircraft destination waypoints
-        for i in range(NUM_OTHER_AIRCRAFT):
+        for i in range(NUM_INTRUDERS):
             other_ac_idx = i+1
             wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx], self.wpt_lat[other_ac_idx], self.wpt_lon[other_ac_idx])
             self.other_ac_destination_waypoint_distance.append(wpt_dis * NM2KM)
