@@ -294,7 +294,7 @@ class Obs:
         return alt
     
     
-    def plotter(self,fig,number, sector_color):
+    def plotter(self,fig,number, sector_color, plt_vertices_labels=0):
         #create code sequence to draw obstacles (with flexible number of vertices)
         codes = []
         codes.append(Path.MOVETO)
@@ -318,6 +318,19 @@ class Obs:
             obsY.append(self.vert[i][1])
         xytext = (np.mean(obsX)-.1,np.mean(obsY))
         ax.annotate(int(number),xytext)
+
+        # --- Label each vertex with A, B, C, ... ---
+        if plt_vertices_labels:
+            vertex_labels = self.label_vertices()
+            for (x, y), label in vertex_labels.items():
+                ax.text(
+                    x + 0.05, y + 0.05,   # offset so text doesn’t overlap vertex
+                    label,
+                    fontsize=10,
+                    color="black",
+                    weight="bold",
+                )
+
         return
 
     

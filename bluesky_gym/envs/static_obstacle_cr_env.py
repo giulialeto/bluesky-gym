@@ -422,7 +422,6 @@ class StaticObstacleCREnv(gym.Env):
         #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # # Getting back the objects:
-        
         # with open('de-bugging_obstacles/objs_impossible_route.pkl', 'rb') as f:
         #     obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
         #     obj7 = self._merge_overlapping_obstacles(obj7)

@@ -48,10 +48,12 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
     #################################################################
     # enable plotting
     plt_enable            = 0
+    plt_vertices_labels = 0
 
     if debugging_printing_flag:
         console_logging_flag   = 1
         plt_enable = 1
+        plt_vertices_labels = 1
 
     if not plt_enable:
         # plot direct route
@@ -181,10 +183,10 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
         plt.ylabel('Y: position w.r.t. Equator [NM]')
 
         # for all obstacles: draw and label (with a number according to order defined)
-        sector_color = ['b', 'c', 'g', 'k', 'm', 'r', 'sienna','y', 'orange', 'pink', 'purple', 'lime', 'dodgerblue', 'olive', 'gold', 'coral', 'teal', 'orchid', 'slateblue', 'tomato', 'violet']
+        sector_color = ['b', 'c', 'g', 'm', 'r', 'sienna','y', 'orange', 'pink', 'purple', 'lime', 'dodgerblue', 'olive', 'gold', 'coral', 'teal', 'orchid', 'slateblue', 'tomato', 'violet']
         color_counter = 0
         for cur in range(len(obsDic_xy)):
-            obsDic_xy[cur].plotter(fig,cur, sector_color[color_counter])
+            obsDic_xy[cur].plotter(fig,cur, sector_color[color_counter], plt_vertices_labels)
             color_counter += 1
 
     
