@@ -120,34 +120,61 @@ class StaticObstacleCREnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
+        self.impossible_route_counter = 0
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
-
-        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
 
         # defining screen coordinates
         # defining the reference point as the top left corner of the SQUARE screen
         # from the initial position of the aircraft which is set to be the centre of the screen
-        ac_idx = bs.traf.id2idx('KL001')
         d = np.sqrt(2*(MAX_DISTANCE/2)**2) #KM
-        lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], 315, d/NM2KM)
+        lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(CENTER[0], CENTER[1], 315, d/NM2KM)
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
 
-        self.sample_obstacle = True
-        while self.sample_obstacle:
-            self._generate_obstacles()
+        self.sample_entire_scenario = True
+        while self.sample_entire_scenario:
+            bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
+            ac_idx = bs.traf.id2idx('KL001')
 
-        self._generate_other_aircraft()
+            # generate obstacles and other aircraft until a valid (not more than two sectors overlap) scenario is found
+            self.sample_obstacle = True
+            while self.sample_obstacle:
+                self._generate_obstacles()
 
-        self._generate_waypoint()
+            self._generate_other_aircraft()
 
-        ac_idx = bs.traf.id2idx('KL001')
-        self.initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
-        bs.traf.hdg[ac_idx] = self.initial_wpt_qdr
-        bs.traf.ap.trk[ac_idx] = self.initial_wpt_qdr
+            self._generate_waypoint()
 
-        self._path_planning()
+            ac_idx = bs.traf.id2idx('KL001')
+            self.initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
+            bs.traf.hdg[ac_idx] = self.initial_wpt_qdr
+            bs.traf.ap.trk[ac_idx] = self.initial_wpt_qdr
+
+            try:
+                self._path_planning()
+                self.sample_entire_scenario = False  # Success
+            except Exception as e:
+                if str(e) == "Impossible to find a route":
+                    print("Impossible to find a route, resampling the scenario")
+                    import pickle
+                    
+                    with open(f'de-bugging_obstacles/impossible_route_automatic_obj_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
+                        obj0 = self.other_aircraft_names
+                        obj1 = bs.traf.lat
+                        obj2 = bs.traf.lon
+                        obj3 = bs.traf.alt
+                        obj4 = bs.traf.tas
+                        obj5 = self.wpt_lat
+                        obj6 = self.wpt_lon
+                        obj7 = self.obstacle_vertices
+                        pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+                    bs.traf.reset()
+                    self.impossible_route_counter += 1
+                    continue
+                    
+                else:
+                    raise  
 
         observation = self._get_obs()
 
@@ -212,8 +239,6 @@ class StaticObstacleCREnv(gym.Env):
                     bs.traf.delete(ac_idx)
 
                 if loop_counter > 50:
-                    import code
-                    code.interact(local = locals())
                     raise Exception("No aircraft can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
@@ -329,10 +354,6 @@ class StaticObstacleCREnv(gym.Env):
         for i in range(NUM_WAYPOINTS):
 
             ac_idx = bs.traf.id2idx(acid)
-            # if i == 0:
-            #     ac_idx = bs.traf.id2idx(acid)
-            # else:
-            #     ac_idx = bs.traf.id2idx(self.other_aircraft_names[i-1])
             
             check_inside_var = True
             loop_counter = 0
@@ -357,13 +378,13 @@ class StaticObstacleCREnv(gym.Env):
                 check_inside_var = any(x == True for x in inside_temp)                    
                 
                 if loop_counter > 1000:
-                    import code
-                    code.interact(local = locals())
                     raise Exception("No waypoints can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
+
 
             self.wpt_lat.append(wpt_lat)
             self.wpt_lon.append(wpt_lon)
             self.wpt_reach.append(0)
+
 
     def _generate_coordinates_centre_obstacles(self, acid = 'KL001', num_obstacles = NUM_OBSTACLES):
         self.obstacle_centre_lat = []
@@ -379,8 +400,6 @@ class StaticObstacleCREnv(gym.Env):
             self.obstacle_centre_lon.append(obstacle_centre_lon)
 
     def _path_planning(self, num_other_aircraft = NUM_OTHER_AIRCRAFT):
-        merged_obstacles_vertices = self.merge_overlapping_obstacles(self.obstacle_vertices)
-
         '''used for debugging'''
         # import pickle
 
@@ -393,18 +412,20 @@ class StaticObstacleCREnv(gym.Env):
         #     obj4 = bs.traf.tas
         #     obj5 = self.wpt_lat
         #     obj6 = self.wpt_lon
-        #     obj7 = merged_obstacles_vertices
+        #     obj7 = self.obstacle_vertices
         #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # # Getting back the objects:
-        # with open('de-bugging_obstacles/objs.pkl', 'rb') as f:
+        
+        # with open('de-bugging_obstacles/objs_impossible_route.pkl', 'rb') as f:
         #     obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
+        #     obj7 = self._merge_overlapping_obstacles(obj7)
         '''END used for debugging'''
 
+        merged_obstacles_vertices = self._merge_overlapping_obstacles(self.obstacle_vertices)
         self.planned_path_other_aircraft = []
 
         for i in range(num_other_aircraft): 
-
             ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], merged_obstacles_vertices)
 
@@ -418,7 +439,7 @@ class StaticObstacleCREnv(gym.Env):
             for element in planned_path_other_aircraft:
                 bs.stack.stack(f"ADDWPT {self.other_aircraft_names[i]} {element[0]} {element[1]}")
 
-    def merge_overlapping_obstacles(self, inputObs):
+    def _merge_overlapping_obstacles(self, inputObs):
         polygons = [Polygon(obs) for obs in inputObs]
         merged = []
 

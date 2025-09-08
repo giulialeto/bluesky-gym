@@ -181,7 +181,7 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
         plt.ylabel('Y: position w.r.t. Equator [NM]')
 
         # for all obstacles: draw and label (with a number according to order defined)
-        sector_color = ['b', 'c', 'g', 'k', 'm', 'r', 'sienna','y', 'orange', 'pink']
+        sector_color = ['b', 'c', 'g', 'k', 'm', 'r', 'sienna','y', 'orange', 'pink', 'purple', 'lime', 'dodgerblue', 'olive', 'gold', 'coral', 'teal', 'orchid', 'slateblue', 'tomato', 'violet']
         color_counter = 0
         for cur in range(len(obsDic_xy)):
             obsDic_xy[cur].plotter(fig,cur, sector_color[color_counter])
@@ -202,14 +202,12 @@ def det_path_planning(lat0, lon0, altitude, TAS, latdest, londest, inputObs):
         if console_logging_flag:
             print('length of active: ',len(Route.active))
 
-        if len(Route.active) > 500:
-
+        if len(Route.active) > 1000:
             if plt_enable:
                 plt.show()
-
-            # import code
-            # code.interact(local= locals())
+            Route.active = []
             raise Exception("Impossible to find a route")
+        
         directrtplted = 0
         
         ## logic for setting parent to least deviation OR only option from active list

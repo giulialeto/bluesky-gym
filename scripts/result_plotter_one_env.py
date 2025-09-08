@@ -9,7 +9,7 @@ def moving_average(x, w):
 
 # Parameters
 models = ["PPO", "SAC", "TD3", "DDPG"]
-# models = ["SAC"]
+models = ["SAC"]
 env = "StaticObstacleCREnv-v0"  # Target environment
 ave_window = 1000
 feature = 'total_reward'
