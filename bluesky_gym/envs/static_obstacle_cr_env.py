@@ -384,6 +384,12 @@ class StaticObstacleCREnv(gym.Env):
             self.wpt_lat.append(wpt_lat)
             self.wpt_lon.append(wpt_lon)
             self.wpt_reach.append(0)
+            
+            if i > 0:
+                ac_idx_other_aircraft = bs.traf.id2idx(self.other_aircraft_names[i-1])
+                initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx_other_aircraft], bs.traf.lon[ac_idx_other_aircraft], self.wpt_lat[i], self.wpt_lon[i])
+                bs.traf.hdg[ac_idx_other_aircraft] = initial_wpt_qdr
+                bs.traf.ap.trk[ac_idx_other_aircraft] = initial_wpt_qdr
 
 
     def _generate_coordinates_centre_obstacles(self, acid = 'KL001', num_obstacles = NUM_OBSTACLES):
