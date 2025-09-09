@@ -193,24 +193,23 @@ class StaticObstacleCREnv(gym.Env):
         self.counter += 1
         self._get_action(action)
 
-        action_frequency = ACTION_FREQUENCY
-        for i in range(action_frequency):
+        for i in range(ACTION_FREQUENCY):
             bs.sim.step()
             if self.render_mode == "human":
                 self._render_frame()
-            reward, done, terminated = self._get_reward()
-            if terminated:
+            reward, done, truncated = self._get_reward()
+            if truncated:
                 observation = self._get_obs()
                 info = self._get_info()
                 self.total_reward += reward
-                return observation, reward, done, terminated, info
+                return observation, reward, done, truncated, info
 
         observation = self._get_obs()
-        reward, done, terminated = self._get_reward()
+        # reward, done, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
-        return observation, reward, done, terminated, info
+        return observation, reward, done, truncated, info
     
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
         
