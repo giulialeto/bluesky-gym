@@ -18,7 +18,7 @@ from bluesky_gym.utils import logger
 
 bluesky_gym.register_envs()
 
-env_name = 'StaticObstacleCREnv-v0'
+env_name = 'StaticObstacleSectorCREnv-v0'
 algorithm = SAC
 
 # Initialize logger
@@ -31,7 +31,7 @@ EVAL_EPISODES = 10
 
 
 if __name__ == "__main__":
-    env = gym.make(env_name, render_mode=None)
+    env = gym.make(env_name, render_mode='human')
     # obs, info = env.reset()
     model = algorithm("MultiInputPolicy", env, verbose=1,learning_rate=3e-4)
     if TRAIN:
