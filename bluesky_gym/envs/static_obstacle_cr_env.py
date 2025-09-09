@@ -12,7 +12,7 @@ from gymnasium import spaces
 
 from shapely.geometry import Polygon
 
-from debug import timelogging
+from debug import timelogging, say
 timelogging()
 
 DISTANCE_MARGIN = 5 # km
@@ -131,12 +131,12 @@ class StaticObstacleCREnv(gym.Env):
         lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(CENTER[0], CENTER[1], 315, d/NM2KM)
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
-
+        
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
+        ac_idx = bs.traf.id2idx('KL001')
+        
         self.sample_entire_scenario = True
         while self.sample_entire_scenario:
-            bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
-            ac_idx = bs.traf.id2idx('KL001')
-
             # generate obstacles and other aircraft until a valid (not more than two sectors overlap) scenario is found
             self.sample_obstacle = True
             while self.sample_obstacle:
@@ -170,16 +170,11 @@ class StaticObstacleCREnv(gym.Env):
                         obj7 = self.obstacle_vertices
                         pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
                     
-                    bs.traf.reset()
-                    # initialize bluesky as non-networked simulation node
-                    bs.init(mode='sim', detached=True)
-
-                    # initialize dummy screen and set correct sim speed
-                    bs.scr = ScreenDummy()
-                    bs.stack.stack('DT 1;FF')
-
-                    bs.traf.reset()
+                    for name in self.other_aircraft_names:
+                        ac_idx = bs.traf.id2idx(name)
+                        bs.traf.delete(ac_idx)
                     self.impossible_route_counter += 1
+                    say('Found impossible route, resampling the scenario')
                     continue
                     
                 else:
@@ -218,6 +213,7 @@ class StaticObstacleCREnv(gym.Env):
         return observation, reward, done, terminated, info
     
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
+        
         self.other_aircraft_names = []
         for i in range(num_other_aircraft): 
             other_aircraft_name = 'AC' + str(i+1)
