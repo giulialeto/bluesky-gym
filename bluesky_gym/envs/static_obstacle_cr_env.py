@@ -12,6 +12,9 @@ from gymnasium import spaces
 
 from shapely.geometry import Polygon
 
+from debug import timelogging
+timelogging()
+
 DISTANCE_MARGIN = 5 # km
 REACH_REWARD = 1 # reach set waypoint
 
@@ -38,7 +41,6 @@ NM2KM = 1.852
 MpS2Kt = 1.94384
 
 ACTION_FREQUENCY = 10
-
 ## for obstacles generation
 NUM_OBSTACLES = 10 #np.random.randint(1,5)
 NUM_INTRUDERS = 5
@@ -157,7 +159,7 @@ class StaticObstacleCREnv(gym.Env):
                     print("Impossible to find a route, resampling the scenario")
                     import pickle
                     
-                    with open(f'de-bugging_obstacles/impossible_route_automatic_obj_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
+                    with open(f'de-bugging_obstacles/objs_impossible_route_automatic_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
                         obj0 = self.other_aircraft_names
                         obj1 = bs.traf.lat
                         obj2 = bs.traf.lon
@@ -167,6 +169,15 @@ class StaticObstacleCREnv(gym.Env):
                         obj6 = self.wpt_lon
                         obj7 = self.obstacle_vertices
                         pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+                    
+                    bs.traf.reset()
+                    # initialize bluesky as non-networked simulation node
+                    bs.init(mode='sim', detached=True)
+
+                    # initialize dummy screen and set correct sim speed
+                    bs.scr = ScreenDummy()
+                    bs.stack.stack('DT 1;FF')
+
                     bs.traf.reset()
                     self.impossible_route_counter += 1
                     continue
@@ -405,24 +416,24 @@ class StaticObstacleCREnv(gym.Env):
 
     def _path_planning(self, num_other_aircraft = NUM_INTRUDERS):
         '''used for debugging'''
-        # import pickle
+        import pickle
 
-        # # Saving the objects:
-        # with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
-        #     obj0 = self.other_aircraft_names
-        #     obj1 = bs.traf.lat
-        #     obj2 = bs.traf.lon
-        #     obj3 = bs.traf.alt
-        #     obj4 = bs.traf.tas
-        #     obj5 = self.wpt_lat
-        #     obj6 = self.wpt_lon
-        #     obj7 = self.obstacle_vertices
-        #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+        # Saving the objects:
+        with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
+            obj0 = self.other_aircraft_names
+            obj1 = bs.traf.lat
+            obj2 = bs.traf.lon
+            obj3 = bs.traf.alt
+            obj4 = bs.traf.tas
+            obj5 = self.wpt_lat
+            obj6 = self.wpt_lon
+            obj7 = self.obstacle_vertices
+            pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # # Getting back the objects:
-        # with open('de-bugging_obstacles/objs_impossible_route.pkl', 'rb') as f:
-        #     obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
-        #     obj7 = self._merge_overlapping_obstacles(obj7)
+        # with open('de-bugging_obstacles/objs_impossible_route_0.pkl', 'rb') as f:
+            # obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
+            # obj7 = self._merge_overlapping_obstacles(obj7)
         '''END used for debugging'''
 
         merged_obstacles_vertices = self._merge_overlapping_obstacles(self.obstacle_vertices)
