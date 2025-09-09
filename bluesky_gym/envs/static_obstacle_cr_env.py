@@ -653,9 +653,6 @@ class StaticObstacleCREnv(gym.Env):
         bs.stack.stack(f"SPD {'KL001'} {speed_new}")
 
     def _render_frame(self):
-        # options for rendering
-        hide_other_target_waypoints = True
-
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
@@ -784,18 +781,12 @@ class StaticObstacleCREnv(gym.Env):
 
 
             if reach:
-                if hide_other_target_waypoints:
-                    color = (135,206,235)
-                else:
-                    color = (155,155,155)
+                color = (155,155,155)
                 color_actor_target = (5, 128, 9)
             else:
-                if hide_other_target_waypoints:
-                    color = (135,206,235)
-                else:
-                    color = (255,255,255)
+                color = (255,255,255)
                 color_actor_target = (235, 52, 52)
-
+            
             if indx == 1:
                 color = color_actor_target
 
