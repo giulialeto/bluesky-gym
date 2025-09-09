@@ -447,10 +447,19 @@ class StaticObstacleSectorCREnv(gym.Env):
                 wpt_lon_array = np.array([wpt_lon, wpt_lon])
                 ac_idx_alt_array = np.array([bs.traf.alt[ac_idx], bs.traf.alt[ac_idx]])
                 inside_temp = []
+
+                # check if waypoint is inside the sector. If not, a new waypoint should be generated
+                if i == 0:
+                    if bs.tools.areafilter.checkInside('sector', wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0]:
+                        inside_temp.append(False)
+                    else:
+                        inside_temp.append(True)
+
                 for j in range(NUM_OBSTACLES):
                     # shapetemp = bs.tools.areafilter.basic_shapes[self.obstacle_names[j]]
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0])
 
+                # if any inside_temp is True, then the waypoint is inside an obstacle (or outside the sector for the target waypoint) and a new waypoint should be generated
                 check_inside_var = any(x == True for x in inside_temp)                    
                 
                 if loop_counter > 1000:
