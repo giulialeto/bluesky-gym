@@ -12,7 +12,7 @@ from gymnasium import spaces
 
 from shapely.geometry import Polygon
 
-from debug import timelogging, say
+from debug import timelogging
 timelogging()
 
 DISTANCE_MARGIN = 5 # km
@@ -174,7 +174,6 @@ class StaticObstacleCREnv(gym.Env):
                         ac_idx = bs.traf.id2idx(name)
                         bs.traf.delete(ac_idx)
                     self.impossible_route_counter += 1
-                    say('Found impossible route, resampling the scenario')
                     continue
                     
                 else:
@@ -205,7 +204,7 @@ class StaticObstacleCREnv(gym.Env):
                 return observation, reward, done, truncated, info
 
         observation = self._get_obs()
-        # reward, done, truncated = self._get_reward()
+        reward, done, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
