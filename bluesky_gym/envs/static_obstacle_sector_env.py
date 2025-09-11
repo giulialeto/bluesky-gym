@@ -78,7 +78,7 @@ class StaticObstacleSectorEnv(gym.Env):
 
             }
         )
-       
+
         self.action_space = spaces.Box(-1, 1, shape=(2,), dtype=np.float64)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -191,7 +191,7 @@ class StaticObstacleSectorEnv(gym.Env):
         self.poly_points_lat_lon = np.array(p) # Polygon vertices are saved in lat/lon coordinates
 
         points = [coord for point in p for coord in point] # Flatten the list of points
-        # red(f'Polygon points: {p}')
+
         bs.tools.areafilter.defineArea('sector', 'POLY', points)
 
     def _get_observation_polygon_edges(self, vertices, total_points=20):
@@ -433,14 +433,15 @@ class StaticObstacleSectorEnv(gym.Env):
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
-
+        
         # Get vertices and points along the edges of the sector
         sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
-
+        
         sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], sector_points[:,0], sector_points[:,1])
         
         # Convert distances to kilometers
-        self.sector_points_distance.append(sector_points_dis * NM2KM)
+        for sector_point in sector_points_dis:
+            self.sector_points_distance.append(sector_point * NM2KM)
 
         # Calculate drift for sector points
         drift = self.ac_hdg - sector_points_qdr
@@ -451,8 +452,9 @@ class StaticObstacleSectorEnv(gym.Env):
         drift = np.array(drift_temp)
 
         # Calculate cosine and sine of the drift angles
-        self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift)))
-        self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift)))
+        for drift_from_point in drift:
+            self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
+            self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
 
         observation = {
                 "destination_waypoint_distance": np.array(self.destination_waypoint_distance)/WAYPOINT_DISTANCE_MAX,
