@@ -39,7 +39,7 @@ MpS2Kt = 1.94384
 
 ACTION_FREQUENCY = 10
 ## for obstacles generation
-NUM_OBSTACLES = 10 #np.random.randint(1,5)
+NUM_OBSTACLES = 5 #np.random.randint(1,5)
 NUM_INTRUDERS = 5
 INTRUSION_DISTANCE = 5 # NM
 
