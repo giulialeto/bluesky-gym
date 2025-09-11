@@ -636,7 +636,8 @@ class StaticObstacleSectorCREnv(gym.Env):
         sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], sector_points[:,0], sector_points[:,1])
         
         # Convert distances to kilometers
-        self.sector_points_distance.append(sector_points_dis * NM2KM)
+        for sector_point in sector_points_dis:
+	        self.sector_points_distance.append(sector_point * NM2KM)
 
         # Calculate drift for sector points
         drift = self.ac_hdg - sector_points_qdr
@@ -647,9 +648,10 @@ class StaticObstacleSectorCREnv(gym.Env):
         drift = np.array(drift_temp)
 
         # Calculate cosine and sine of the drift angles
-        self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift)))
-        self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift)))
-
+        for drift_from_point in drift:
+            self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
+            self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
+        
         observation = {
                 "intruder_distance": np.array(self.intruder_distance)/WAYPOINT_DISTANCE_MAX,
                 "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing),
