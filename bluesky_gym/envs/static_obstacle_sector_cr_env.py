@@ -12,9 +12,6 @@ from gymnasium import spaces
 
 from shapely.geometry import Polygon
 
-from debug import timelogging, say
-timelogging()
-
 DISTANCE_MARGIN = 5 # km
 REACH_REWARD = 1 # reach set waypoint
 
@@ -170,24 +167,23 @@ class StaticObstacleSectorCREnv(gym.Env):
             except Exception as e:
                 if str(e) == "Impossible to find a route":
                     print("Impossible to find a route, resampling the scenario")
-                    import pickle
+                    # import pickle
                     
-                    with open(f'de-bugging_obstacles/objs_impossible_route_automatic_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
-                        obj0 = self.other_aircraft_names
-                        obj1 = bs.traf.lat
-                        obj2 = bs.traf.lon
-                        obj3 = bs.traf.alt
-                        obj4 = bs.traf.tas
-                        obj5 = self.wpt_lat
-                        obj6 = self.wpt_lon
-                        obj7 = self.obstacle_vertices
-                        pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+                    # with open(f'de-bugging_obstacles/objs_impossible_route_automatic_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
+                    #     obj0 = self.other_aircraft_names
+                    #     obj1 = bs.traf.lat
+                    #     obj2 = bs.traf.lon
+                    #     obj3 = bs.traf.alt
+                    #     obj4 = bs.traf.tas
+                    #     obj5 = self.wpt_lat
+                    #     obj6 = self.wpt_lon
+                    #     obj7 = self.obstacle_vertices
+                    #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
                     
                     for name in self.other_aircraft_names:
                         ac_idx = bs.traf.id2idx(name)
                         bs.traf.delete(ac_idx)
                     self.impossible_route_counter += 1
-                    say('Found impossible route, resampling the scenario')
                     continue
                 else:
                     raise  
@@ -493,19 +489,19 @@ class StaticObstacleSectorCREnv(gym.Env):
 
     def _path_planning(self, num_other_aircraft = NUM_INTRUDERS):
         '''used for debugging'''
-        import pickle
+        # import pickle
 
-        # Saving the objects:
-        with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
-            obj0 = self.other_aircraft_names
-            obj1 = bs.traf.lat
-            obj2 = bs.traf.lon
-            obj3 = bs.traf.alt
-            obj4 = bs.traf.tas
-            obj5 = self.wpt_lat
-            obj6 = self.wpt_lon
-            obj7 = self.obstacle_vertices
-            pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
+        # # Saving the objects:
+        # with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
+        #     obj0 = self.other_aircraft_names
+        #     obj1 = bs.traf.lat
+        #     obj2 = bs.traf.lon
+        #     obj3 = bs.traf.alt
+        #     obj4 = bs.traf.tas
+        #     obj5 = self.wpt_lat
+        #     obj6 = self.wpt_lon
+        #     obj7 = self.obstacle_vertices
+        #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
 
         # # Getting back the objects:
         # with open('de-bugging_obstacles/objs_impossible_route_0.pkl', 'rb') as f:
@@ -954,4 +950,4 @@ class StaticObstacleSectorCREnv(gym.Env):
             pygame.time.wait(100)
 
     def close(self):
-        bs.stasck.stack("quit")
+        bs.stack.stack("quit")
