@@ -637,8 +637,8 @@ class StaticObstacleSectorCREnv(gym.Env):
         
         # Convert distances to kilometers
         for sector_point in sector_points_dis:
-	        self.sector_points_distance.append(sector_point * NM2KM)
-
+            self.sector_points_distance.append(sector_point * NM2KM)
+            
         # Calculate drift for sector points
         drift = self.ac_hdg - sector_points_qdr
         drift_temp = []
