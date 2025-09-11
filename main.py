@@ -46,7 +46,7 @@ if __name__ == "__main__":
     for i in range(EVAL_EPISODES):
 
         done = truncated = False
-        obs, info = env.re1set()
+        obs, info = env.reset()
         tot_rew = 0
         while not (done or truncated):
             # action = np.array(np.random.randint(-100,100,size=(2))/100)
