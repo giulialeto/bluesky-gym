@@ -85,7 +85,8 @@ class StaticObstacleSectorEnv(gym.Env):
         self.render_mode = render_mode
 
         # initialize bluesky as non-networked simulation node
-        bs.init(mode='sim', detached=True)
+        if bs.sim is None:
+            bs.init(mode='sim', detached=True)
 
         # initialize dummy screen and set correct sim speed
         bs.scr = ScreenDummy()
@@ -658,4 +659,4 @@ class StaticObstacleSectorEnv(gym.Env):
         self.clock.tick(self.metadata["render_fps"])
 
     def close(self):
-        pass
+        bs.stack.stack('quit')
