@@ -548,8 +548,15 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             # dh = action[action_index] * D_HEADING
             # else:
             #     dh = -self.drift
-            dv = action[action_index+1] * D_SPEED
-            dh = action[action_index] * D_HEADING
+            import debug
+            debug.red(action_index*2)
+            debug.green(action_index*2+1)
+            #check with Sasha I think there is a bug here... +1 should be *2 +1
+            # dv = action[action_index+1] * D_SPEED
+            # dh = action[action_index] * D_HEADING
+
+            dv = action[action_index*2+1] * D_SPEED
+            dh = action[action_index*2] * D_HEADING
             self.average_v_action.append(dv)
             self.average_hdg_action.append(dh)
 
@@ -585,42 +592,71 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         px_per_km = self.window_width/MAX_DISTANCE
 
         # draw ownship
-        ac_idx = bs.traf.id2idx('AC1')
-        ac_length = 8
-        heading_end_x = ((np.sin(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
-        heading_end_y = ((np.cos(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
-        # print(self.window_width/2, self.window_height/2)
-        # pygame.draw.line(canvas,
-        #     (0,0,0),
-        #     (self.window_width/2-heading_end_x/2,self.window_height/2+heading_end_y/2),
-        #     ((self.window_width/2)+heading_end_x/2
-        #      ,(self.window_height/2)-heading_end_y/2),
-        #     width = 4
-        # )
 
-        qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])
-        dis = dis*NM2KM
-        x_actor = ((np.sin(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_width
-        y_actor = ((-np.cos(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_width
 
-        pygame.draw.line(canvas,
-            (235, 52, 52),
-            (x_actor, y_actor),
-            (x_actor+heading_end_x, y_actor-heading_end_y),
-            width = 5
-        )
 
-        # draw heading line
-        heading_length = 50
-        heading_end_x = ((np.sin(np.deg2rad(self.ac_hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
-        heading_end_y = ((np.cos(np.deg2rad(self.ac_hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
+        # draw intruders
+        ac_length = 3
 
-        pygame.draw.line(canvas,
-            (0,0,0),
-            (x_actor,y_actor),
-            (x_actor+heading_end_x, y_actor-heading_end_y),
-            width = 1
-        )
+        for i in range(NUM_AC):
+            hdg = bs.traf.hdg[i]
+            heading_end_x = ((np.sin(np.deg2rad(hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
+            heading_end_y = ((np.cos(np.deg2rad(hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
+
+            qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[i], bs.traf.lon[i])
+
+            # determine color
+            # if dis < INTRUSION_DISTANCE:
+            #     color = (220,20,60)
+            # else: 
+            #     color = (80,80,80)
+            # color = (235, 52, 52)#(220,20,60)
+            color = (80,80,80)
+            color_circle = (80,80,80)
+
+            # check if the aircraft crashes onto another aircraft
+            for other_ac_idx in range(NUM_AC):
+                if other_ac_idx == i:
+                    continue
+                _, ac_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[i], bs.traf.lon[i], bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx])
+                if ac_dis < INTRUSION_DISTANCE:
+                    color = (220,20,60)
+                    color_circle = (220,20,60)
+                    break
+                    
+
+            x_pos = (np.sin(np.deg2rad(qdr))*(dis * NM2KM)/MAX_DISTANCE)*self.window_width
+            y_pos = -(np.cos(np.deg2rad(qdr))*(dis * NM2KM)/MAX_DISTANCE)*self.window_height
+
+            pygame.draw.line(canvas,
+                color,
+                (x_pos,y_pos),
+                ((x_pos)+heading_end_x,(y_pos)-heading_end_y),
+                width = 4
+            )
+
+            # draw heading line
+            heading_length = 10
+            heading_end_x = ((np.sin(np.deg2rad(hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
+            heading_end_y = ((np.cos(np.deg2rad(hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
+            
+            color_heading = (0,0,0)
+            
+            pygame.draw.line(canvas,
+                color_heading,
+                (x_pos,y_pos),
+                ((x_pos)+heading_end_x,(y_pos)-heading_end_y),
+                width = 1
+            )
+            
+            pygame.draw.circle(
+                canvas, 
+                color_circle,
+                (x_pos,y_pos),
+                radius = (INTRUSION_DISTANCE*NM2KM/MAX_DISTANCE)*self.window_width,
+                width = 2
+            )
+
 
         # draw obstacles
         for vertices in self.obstacle_vertices:
@@ -637,53 +673,6 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 (0,0,0), points
             )
 
-        # draw intruders
-        ac_length = 3
-
-        for i in range(NUM_INTRUDERS):
-            int_idx = i+1
-            int_hdg = bs.traf.hdg[int_idx]
-            heading_end_x = ((np.sin(np.deg2rad(int_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
-            heading_end_y = ((np.cos(np.deg2rad(int_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
-
-            int_qdr, int_dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
-
-            # determine color
-            if int_dis < INTRUSION_DISTANCE:
-                color = (220,20,60)
-            else: 
-                color = (80,80,80)
-
-            x_pos = (np.sin(np.deg2rad(int_qdr))*(int_dis * NM2KM)/MAX_DISTANCE)*self.window_width
-            y_pos = -(np.cos(np.deg2rad(int_qdr))*(int_dis * NM2KM)/MAX_DISTANCE)*self.window_height
-
-            pygame.draw.line(canvas,
-                color,
-                (x_pos,y_pos),
-                ((x_pos)+heading_end_x,(y_pos)-heading_end_y),
-                width = 4
-            )
-
-            # draw heading line
-            heading_length = 10
-            heading_end_x = ((np.sin(np.deg2rad(int_hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
-            heading_end_y = ((np.cos(np.deg2rad(int_hdg)) * heading_length)/MAX_DISTANCE)*self.window_width
-
-            pygame.draw.line(canvas,
-                color,
-                (x_pos,y_pos),
-                ((x_pos)+heading_end_x,(y_pos)-heading_end_y),
-                width = 1
-            )
-
-            pygame.draw.circle(
-                canvas, 
-                color,
-                (x_pos,y_pos),
-                radius = (INTRUSION_DISTANCE*NM2KM/MAX_DISTANCE)*self.window_width,
-                width = 2
-            )
-
         # draw target waypoint
         indx = 0
         for lat, lon, reach in zip(self.wpt_lat, self.wpt_lon, self.wpt_reach):
@@ -696,20 +685,9 @@ class CentralisedStaticObstacleCREnv(gym.Env):
 
 
             if reach:
-                if hide_other_target_waypoints:
-                    color = (135,206,235)
-                else:
-                    color = (155,155,155)
-                color_actor_target = (5, 128, 9)
+                color = (5, 128, 9)
             else:
-                if hide_other_target_waypoints:
-                    color = (135,206,235)
-                else:
-                    color = (255,255,255)
-                color_actor_target = (235, 52, 52)
-            
-            if indx == 1:
-                color = color_actor_target
+                color = (235, 52, 52)
 
             pygame.draw.circle(
                 canvas, 
