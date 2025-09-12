@@ -863,8 +863,10 @@ class StaticObstacleSectorCREnv(gym.Env):
 
             int_qdr, int_dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
 
-            # determine color
-            if int_dis < INTRUSION_DISTANCE:
+            # determine if intruder is within the minimum separation distance
+            _, int_dis_ownship = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
+            
+            if int_dis_ownship < INTRUSION_DISTANCE:
                 color = (220,20,60)
             else: 
                 color = (80,80,80)
