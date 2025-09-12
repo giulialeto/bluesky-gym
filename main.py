@@ -20,14 +20,14 @@ from bluesky_gym.utils import logger
 bluesky_gym.register_envs()
 
 env_name = 'CentralisedMergeEnv-v0'
-algorithm = SAC
+algorithm = PPO
 
 # Initialize logger
 log_dir = f'./logs/{env_name}/'
 file_name = f'{env_name}_{str(algorithm.__name__)}.csv'
 csv_logger_callback = logger.CSVLoggerCallback(log_dir, file_name)
 
-TRAIN = True
+TRAIN = False
 EVAL_EPISODES = 10
 class SaveModelCallback(BaseCallback):
     def __init__(self, save_freq: int, save_path: str, verbose: int = 0):
@@ -39,7 +39,7 @@ class SaveModelCallback(BaseCallback):
         # Check if the training step is a multiple of the save frequency
         if self.n_calls % self.save_freq == 0:
             # Save the model
-            model_path = f"{self.save_path}/{env_name}_{str(algorithm.__name__)}model_{self.n_calls}.zip"
+            model_path = f"{self.save_path}/{env_name}/{env_name}_{str(algorithm.__name__)}model_{self.n_calls}.zip"
             self.model.save(model_path)
             if self.verbose > 0:
                 print(f"Model saved at step {self.n_calls} to {model_path}")
@@ -48,20 +48,17 @@ class SaveModelCallback(BaseCallback):
 
 if __name__ == "__main__":
     env = gym.make(env_name, render_mode=None)
-    obs, info = env.reset()
+    # obs, info = env.reset()
     model = algorithm("MultiInputPolicy", env, verbose=1,learning_rate=2*3e-4)
     save_callback = SaveModelCallback(save_freq=1000, save_path="./saved_models", verbose=1)
     if TRAIN:
         model.learn(total_timesteps=500000, callback=CallbackList([save_callback,csv_logger_callback]))
-        model.save(f"models/{env_name}_{str(algorithm.__name__)}/model")
+        model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model")
         del model
     env.close()
     
     # Test the trained model
-    # default
-    model = algorithm.load(f"models/{env_name}_{str(algorithm.__name__)}/model", env=env)
-    # load saved ones
-    # model = algorithm.load(f"models/{env_name}_{str(algorithm.__name__)}/model", env=env)
+    model = algorithm.load(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model", env=env)
     env = gym.make(env_name, render_mode="human")
     for i in range(EVAL_EPISODES):
         done = truncated = False 
