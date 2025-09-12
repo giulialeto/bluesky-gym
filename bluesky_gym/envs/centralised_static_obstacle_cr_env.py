@@ -548,9 +548,9 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             # dh = action[action_index] * D_HEADING
             # else:
             #     dh = -self.drift
-            import debug
-            debug.red(action_index*2)
-            debug.green(action_index*2+1)
+            # import debug
+            # debug.red(action_index*2)
+            # debug.green(action_index*2+1)
             #check with Sasha I think there is a bug here... +1 should be *2 +1
             # dv = action[action_index+1] * D_SPEED
             # dh = action[action_index] * D_HEADING
