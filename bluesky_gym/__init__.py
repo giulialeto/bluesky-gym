@@ -50,3 +50,9 @@ register(
         entry_point="bluesky_gym.envs.static_obstacle_cr_env:StaticObstacleCREnv",
         max_episode_steps=100,
     )
+
+register(
+        id="CentralisedStaticObstacleCREnv-v0",
+        entry_point="bluesky_gym.envs.centralised_static_obstacle_cr_env:CentralisedStaticObstacleCREnv",
+        max_episode_steps=100,
+    )
