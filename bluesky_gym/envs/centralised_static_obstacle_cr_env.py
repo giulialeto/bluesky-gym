@@ -42,6 +42,7 @@ ACTION_FREQUENCY = 10
 NUM_OBSTACLES = 10 #np.random.randint(1,5)
 NUM_INTRUDERS = 5
 NUM_AC = 10
+NUM_AC_STATE = NUM_AC #check if this is not just redundant 
 INTRUSION_DISTANCE = 5 # NM
 
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
@@ -84,7 +85,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             }
         )
        
-        self.action_space = spaces.Box(-1, 1, shape=(2,), dtype=np.float64)
+        self.action_space = spaces.Box(-1, 1, shape=(2*NUM_AC_STATE,), dtype=np.float64)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -102,6 +103,10 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
+        self.average_v_action = [] # Why is this called AVERAGE? isn't it just the action?
+        self.average_hdg_action = [] # Why is this called AVERAGE? isn't it just the action?
+        self.ac_indices = np.arange(1, NUM_AC + 1)
+
 
         self.obstacle_names = []
 
@@ -130,8 +135,6 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(CENTER[0], CENTER[1], 315, d/NM2KM)
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
-        
-
         
         # generate obstacles and other aircraft until a valid (not more than two sectors overlap) scenario is found
         self.sample_obstacle = True
@@ -462,7 +465,10 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             'total_reward': self.total_reward,
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
-            'average_drift': self.average_drift.mean()
+            'average_drift': self.average_drift.mean(),
+            'average_vinput': np.mean(self.average_v_action),
+            'average_hdginput': np.mean(self.average_hdg_action)
+
         }
 
     def _get_reward(self):
@@ -527,13 +533,36 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return reward, terminate
 
     def _get_action(self,action):
-        dh = action[0] * D_HEADING
-        dv = action[1] * D_SPEED
-        heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('AC1')] + dh)
-        speed_new = (bs.traf.tas[bs.traf.id2idx('AC1')] + dv) * MpS2Kt
+        # dh = action[0] * D_HEADING
+        # dv = action[1] * D_SPEED
+        # heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('AC1')] + dh)
+        # speed_new = (bs.traf.tas[bs.traf.id2idx('AC1')] + dv) * MpS2Kt
 
-        bs.stack.stack(f"HDG {'AC1'} {heading_new}")
-        bs.stack.stack(f"SPD {'AC1'} {speed_new}")
+        # bs.stack.stack(f"HDG {'AC1'} {heading_new}")
+        # bs.stack.stack(f"SPD {'AC1'} {speed_new}")
+
+
+        for i in range(len(self.ac_indices)): # TODO: change to controled. now is but might be wrong..
+            action_index = i
+            # if not self.wpt_reach:
+            # dh = action[action_index] * D_HEADING
+            # else:
+            #     dh = -self.drift
+            dv = action[action_index+1] * D_SPEED
+            dh = action[action_index] * D_HEADING
+            self.average_v_action.append(dv)
+            self.average_hdg_action.append(dh)
+
+            ind_ac = self.ac_indices[i] # this is to map the controll-ee to the instantaneous action space (since we change ac)
+
+            heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx(f'AC{ind_ac}')] + dh)
+            speed_new = (bs.traf.tas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
+            # speed_new = speed_new if speed_new>0 else 0
+            
+            # if not baseline_test:
+            bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
+            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
+
 
     def _render_frame(self):
         # options for rendering
