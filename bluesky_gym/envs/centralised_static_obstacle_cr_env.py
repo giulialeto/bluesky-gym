@@ -25,8 +25,8 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
-OTHER_AC_DISTANCE_MIN = 50 # KM
-OTHER_AC_DISTANCE_MAX = 170 # KM
+AC_DISTANCE_MIN = 50 # KM
+AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # kts (check)
@@ -41,10 +41,11 @@ ACTION_FREQUENCY = 10
 ## for obstacles generation
 NUM_OBSTACLES = 10 #np.random.randint(1,5)
 NUM_INTRUDERS = 5
+NUM_AC = 10
 INTRUSION_DISTANCE = 5 # NM
 
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
-NUM_WAYPOINTS = NUM_INTRUDERS + 1
+NUM_WAYPOINTS = NUM_AC
 
 POLY_AREA_RANGE = (50, 1000) # In NM^2
 # CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
@@ -130,52 +131,16 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
         
-        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
-        ac_idx = bs.traf.id2idx('KL001')
+
         
-        self.sample_entire_scenario = True
-        while self.sample_entire_scenario:
-            # generate obstacles and other aircraft until a valid (not more than two sectors overlap) scenario is found
-            self.sample_obstacle = True
-            while self.sample_obstacle:
-                self._generate_obstacles()
+        # generate obstacles and other aircraft until a valid (not more than two sectors overlap) scenario is found
+        self.sample_obstacle = True
+        while self.sample_obstacle:
+            self._generate_obstacles()
 
-            self._generate_other_aircraft()
+        self._generate_aircraft()
 
-            self._generate_waypoint()
-
-            ac_idx = bs.traf.id2idx('KL001')
-            self.initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
-            bs.traf.hdg[ac_idx] = self.initial_wpt_qdr
-            bs.traf.ap.trk[ac_idx] = self.initial_wpt_qdr
-
-            try:
-                self._path_planning()
-                self.sample_entire_scenario = False  # Success
-            except Exception as e:
-                if str(e) == "Impossible to find a route":
-                    print("Impossible to find a route, resampling the scenario")
-                    # import pickle
-                    
-                    # with open(f'de-bugging_obstacles/objs_impossible_route_automatic_saving_{self.impossible_route_counter}.pkl', 'wb') as f:
-                    #     obj0 = self.other_aircraft_names
-                    #     obj1 = bs.traf.lat
-                    #     obj2 = bs.traf.lon
-                    #     obj3 = bs.traf.alt
-                    #     obj4 = bs.traf.tas
-                    #     obj5 = self.wpt_lat
-                    #     obj6 = self.wpt_lon
-                    #     obj7 = self.obstacle_vertices
-                    #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
-                    
-                    for name in self.other_aircraft_names:
-                        ac_idx = bs.traf.id2idx(name)
-                        bs.traf.delete(ac_idx)
-                    self.impossible_route_counter += 1
-                    continue
-                    
-                else:
-                    raise  
+        self._generate_waypoint()
 
         observation = self._get_obs()
 
@@ -208,13 +173,12 @@ class CentralisedStaticObstacleCREnv(gym.Env):
 
         return observation, reward, done, truncated, info
     
-    def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
+    def _generate_aircraft(self, num_aircraft = NUM_AC):
         
-        self.other_aircraft_names = []
-        for i in range(num_other_aircraft): 
-            other_aircraft_name = 'AC' + str(i+1)
-            self.other_aircraft_names.append(other_aircraft_name)
-            ac_idx_actor = bs.traf.id2idx(acid_actor)
+        self.aircraft_names = []
+        for i in range(num_aircraft): 
+            aircraft_name = 'AC' + str(i+1)
+            self.aircraft_names.append(aircraft_name)
 
             check_if_inside_obs = True
             loop_counter = 0
@@ -222,14 +186,14 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             while check_if_inside_obs:
                 loop_counter+= 1
 
-                other_aircraft_dis_from_reference = np.random.randint(OTHER_AC_DISTANCE_MIN, OTHER_AC_DISTANCE_MAX)
-                other_aircraft_hdg_from_reference = np.random.randint(0, 360)
+                aircraft_dis_from_reference = np.random.randint(AC_DISTANCE_MIN, AC_DISTANCE_MAX)
+                aircraft_hdg_from_reference = np.random.randint(0, 360)
                 
-                other_aircraft_lat, other_aircraft_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx_actor], bs.traf.lon[ac_idx_actor], other_aircraft_dis_from_reference, other_aircraft_hdg_from_reference)
+                aircraft_lat, aircraft_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], aircraft_dis_from_reference, aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD)
+                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD)
                 
-                ac_idx = bs.traf.id2idx(other_aircraft_name)
+                ac_idx = bs.traf.id2idx(aircraft_name)
 
                 inside_temp = []
                 for j in range(NUM_OBSTACLES):
@@ -258,7 +222,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         
         return p_area, p, R
     
-    def _generate_obstacles(self, acid = 'KL001'):
+    def _generate_obstacles(self):
         # delete existing obstacles from previous episode in BlueSky
         for name in self.obstacle_names:
             bs.tools.areafilter.deleteArea(name)
@@ -274,7 +238,6 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         self._generate_coordinates_centre_obstacles(num_obstacles = NUM_OBSTACLES)
 
         obstacle_dict = {}  # Initialize the dictionary to store obstacles for overlap checking
-        ac_idx = bs.traf.id2idx(acid)
 
         for i in range(NUM_OBSTACLES):
 
@@ -289,11 +252,6 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             for k in range(0,len(points),2):
                 obstacle_vertices_coordinates.append([points[k], points[k+1]])
             
-            overlap = bs.tools.areafilter.checkInside(poly_name, np.array([bs.traf.lat[ac_idx]]), np.array([bs.traf.lon[ac_idx]]), np.array([bs.traf.alt[ac_idx]]))[0]
-            if overlap:
-                self.sample_obstacle = True
-                return
-
             obstacle_names.append(poly_name)
             obstacle_vertices.append(obstacle_vertices_coordinates)
             obstacle_radius.append(R)
@@ -308,7 +266,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 found_overlap = False
                 for k in range(0, len(obstacle_vertices[j])):
                     # check if the vertices of the obstacle are inside the other obstacles
-                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([bs.traf.alt[ac_idx]]))[0]
+                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([ALTITUDE]))[0]
                     if overlap:
                         overlap_list.append(obstacle_names[j])
                         break #break vertex loop
@@ -318,7 +276,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                     else:
                         interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][k+1])
                     for point in interpolated_points:
-                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([bs.traf.alt[ac_idx]]))[0]
+                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([ALTITUDE]))[0]
                         if overlap:
                             overlap_list.append(obstacle_names[j])
                             found_overlap = True
@@ -348,29 +306,27 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         lons = np.linspace(vertex_1[1], vertex_2[1], n)
         return list(zip(lats, lons))
 
-    def _generate_waypoint(self, acid = 'KL001'):
+    def _generate_waypoint(self):
         self.wpt_lat = []
         self.wpt_lon = []
         self.wpt_reach = []
         for i in range(NUM_WAYPOINTS):
-
-            ac_idx = bs.traf.id2idx(acid)
-            
             check_inside_var = True
             loop_counter = 0
             while check_inside_var:
                 loop_counter += 1
-                if i == 0:
-                    wpt_dis_init = np.random.randint(100, 170)
-                else:
-                    wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
+                # if i == 0:
+                #     wpt_dis_init = np.random.randint(100, 170)
+                # else:
+                #     wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
+                wpt_dis_init = np.random.randint(100, 170)
                 wpt_hdg_init = np.random.randint(0, 360)
-                wpt_lat, wpt_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], wpt_dis_init, wpt_hdg_init)
+                wpt_lat, wpt_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], wpt_dis_init, wpt_hdg_init)
 
                 # working around the bug in bluesky that gives a ValueError when checkInside is used to check a single element
                 wpt_lat_array = np.array([wpt_lat, wpt_lat])
                 wpt_lon_array = np.array([wpt_lon, wpt_lon])
-                ac_idx_alt_array = np.array([bs.traf.alt[ac_idx], bs.traf.alt[ac_idx]])
+                ac_idx_alt_array = np.array([ALTITUDE, ALTITUDE])
                 inside_temp = []
                 for j in range(NUM_OBSTACLES):
                     # shapetemp = bs.tools.areafilter.basic_shapes[self.obstacle_names[j]]
@@ -381,94 +337,29 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 if loop_counter > 1000:
                     raise Exception("No waypoints can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
-
             self.wpt_lat.append(wpt_lat)
             self.wpt_lon.append(wpt_lon)
             self.wpt_reach.append(0)
             
-            if i > 0:
-                ac_idx_other_aircraft = bs.traf.id2idx(self.other_aircraft_names[i-1])
-                initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx_other_aircraft], bs.traf.lon[ac_idx_other_aircraft], self.wpt_lat[i], self.wpt_lon[i])
-                bs.traf.hdg[ac_idx_other_aircraft] = initial_wpt_qdr
-                bs.traf.ap.trk[ac_idx_other_aircraft] = initial_wpt_qdr
+            ac_idx_aircraft = bs.traf.id2idx(self.aircraft_names[i])
+            initial_wpt_qdr, _ = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx_aircraft], bs.traf.lon[ac_idx_aircraft], self.wpt_lat[i], self.wpt_lon[i])
+            bs.traf.hdg[ac_idx_aircraft] = initial_wpt_qdr
+            bs.traf.ap.trk[ac_idx_aircraft] = initial_wpt_qdr
 
-
-    def _generate_coordinates_centre_obstacles(self, acid = 'KL001', num_obstacles = NUM_OBSTACLES):
+    def _generate_coordinates_centre_obstacles(self, num_obstacles = NUM_OBSTACLES):
         self.obstacle_centre_lat = []
         self.obstacle_centre_lon = []
         
         for i in range(num_obstacles):
             obstacle_dis_from_reference = np.random.randint(OBSTACLE_DISTANCE_MIN, OBSTACLE_DISTANCE_MAX)
             obstacle_hdg_from_reference = np.random.randint(0, 360)
-            ac_idx = bs.traf.id2idx(acid)
 
-            obstacle_centre_lat, obstacle_centre_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], obstacle_dis_from_reference, obstacle_hdg_from_reference)    
+            obstacle_centre_lat, obstacle_centre_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], obstacle_dis_from_reference, obstacle_hdg_from_reference)    
             self.obstacle_centre_lat.append(obstacle_centre_lat)
             self.obstacle_centre_lon.append(obstacle_centre_lon)
-
-    def _path_planning(self, num_other_aircraft = NUM_INTRUDERS):
-        '''used for debugging'''
-        # import pickle
-
-        # # Saving the objects:
-        # with open('de-bugging_obstacles/objs.pkl', 'wb') as f:
-        #     obj0 = self.other_aircraft_names
-        #     obj1 = bs.traf.lat
-        #     obj2 = bs.traf.lon
-        #     obj3 = bs.traf.alt
-        #     obj4 = bs.traf.tas
-        #     obj5 = self.wpt_lat
-        #     obj6 = self.wpt_lon
-        #     obj7 = self.obstacle_vertices
-        #     pickle.dump([obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7], f)
-
-        # # Getting back the objects:
-        # with open('de-bugging_obstacles/objs_impossible_route_0.pkl', 'rb') as f:
-            # obj0, obj1, obj2, obj3, obj4, obj5, obj6, obj7 = pickle.load(f)
-            # obj7 = self._merge_overlapping_obstacles(obj7)
-        '''END used for debugging'''
-
-        merged_obstacles_vertices = self._merge_overlapping_obstacles(self.obstacle_vertices)
-        self.planned_path_other_aircraft = []
-
-        for i in range(num_other_aircraft): 
-            ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
-            planned_path_other_aircraft = path_plan.det_path_planning(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx], bs.traf.tas[ac_idx]/kts, self.wpt_lat[i+1], self.wpt_lon[i+1], merged_obstacles_vertices)
-
-            '''used for debugging'''
-            # ac_idx = bs.traf.id2idx(obj0[i])
-            # planned_path_other_aircraft = path_plan.det_path_planning(obj1[ac_idx], obj2[ac_idx], obj3[ac_idx], obj4[ac_idx]/kts, obj5[i+1], obj6[i+1], obj7)
-            '''END used for debugging'''
-
-            self.planned_path_other_aircraft.append(planned_path_other_aircraft)
-
-            for element in planned_path_other_aircraft:
-                bs.stack.stack(f"ADDWPT {self.other_aircraft_names[i]} {element[0]} {element[1]}")
-
-    def _merge_overlapping_obstacles(self, inputObs):
-        polygons = [Polygon(obs) for obs in inputObs]
-        merged = []
-
-        while polygons:
-            base = polygons.pop(0)
-            group = [base]
-
-            i = 0
-            while i < len(polygons):
-                if base.intersects(polygons[i]) or base.contains(polygons[i]) or polygons[i].contains(base):
-                    base = base.union(polygons[i])
-                    group.append(polygons[i])
-                    polygons.pop(i)
-                    i = 0  # restart
-                else:
-                    i += 1
-
-            merged.append(base)
-
-        return [list(poly.exterior.coords[:-1]) for poly in merged]
     
     def _get_obs(self):
-        ac_idx = bs.traf.id2idx('KL001')
+        ac_idx = bs.traf.id2idx('AC1')
 
         self.intruder_distance = []
         self.intruder_cos_bearing = []
@@ -603,9 +494,9 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 reward += 0
                 index += 1
         
-        for other_ac_wpt_reach_idx in range(len(self.wpt_reach)-1):
-            if self.other_ac_destination_waypoint_distance[other_ac_wpt_reach_idx] < DISTANCE_MARGIN and self.wpt_reach[other_ac_wpt_reach_idx+1] != 1:
-                self.wpt_reach[other_ac_wpt_reach_idx+1] = 1
+        # for other_ac_wpt_reach_idx in range(len(self.wpt_reach)-1):
+        #     if self.other_ac_destination_waypoint_distance[other_ac_wpt_reach_idx] < DISTANCE_MARGIN and self.wpt_reach[other_ac_wpt_reach_idx+1] != 1:
+        #         self.wpt_reach[other_ac_wpt_reach_idx+1] = 1
 
         return reward
 
@@ -615,7 +506,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return drift * DRIFT_PENALTY
     
     def _check_intrusion_other_ac(self):
-        ac_idx = bs.traf.id2idx('KL001')
+        ac_idx = bs.traf.id2idx('AC1')
         reward = 0
         for i in range(NUM_INTRUDERS):
             int_idx = i+1
@@ -625,7 +516,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return reward
 
     def _check_intrusion(self):
-        ac_idx = bs.traf.id2idx('KL001')
+        ac_idx = bs.traf.id2idx('AC1')
         reward = 0
         terminate = 0
         for obs_idx in range(NUM_OBSTACLES):
@@ -638,11 +529,11 @@ class CentralisedStaticObstacleCREnv(gym.Env):
     def _get_action(self,action):
         dh = action[0] * D_HEADING
         dv = action[1] * D_SPEED
-        heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
-        speed_new = (bs.traf.tas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('AC1')] + dh)
+        speed_new = (bs.traf.tas[bs.traf.id2idx('AC1')] + dv) * MpS2Kt
 
-        bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        bs.stack.stack(f"HDG {'AC1'} {heading_new}")
+        bs.stack.stack(f"SPD {'AC1'} {speed_new}")
 
     def _render_frame(self):
         # options for rendering
@@ -665,7 +556,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         px_per_km = self.window_width/MAX_DISTANCE
 
         # draw ownship
-        ac_idx = bs.traf.id2idx('KL001')
+        ac_idx = bs.traf.id2idx('AC1')
         ac_length = 8
         heading_end_x = ((np.sin(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
         heading_end_y = ((np.cos(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
