@@ -83,8 +83,6 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64)
             }
         )
-        import debug
-        debug.pink(f'observation_space: {self.observation_space}, shape: {self.observation_space.shape}')
 
         self.action_space = spaces.Box(-1, 1, shape=(2*NUM_AC,), dtype=np.float64)
 
@@ -386,7 +384,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         
         # other aircraft destination waypoints
         # self.other_ac_destination_waypoint_distance = []
-        import debug
+        # import debug
         # intruders observation
         for i in range(NUM_AC):
 
@@ -398,7 +396,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             # debug.green(f'int_qdr: {int_qdr}')
             # debug.green(f'int_dis: {int_dis}')
             self.intruder_distance.append(int_dis * NM2KM)
-            debug.cyan(f'intruder_distance: {self.intruder_distance}')
+            # debug.cyan(f'intruder_distance: {self.intruder_distance}')
             bearing = bs.traf.hdg[i] - int_qdr
             for bearing_idx in range(len(bearing)):
                 bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
@@ -407,12 +405,12 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             self.intruder_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.intruder_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
-            debug.magenta(f'intruder_cos_bearing: {self.intruder_cos_bearing}, shape: {np.array(self.intruder_cos_bearing).shape}')
-            debug.magenta(f'intruder_sin_bearing: {self.intruder_sin_bearing}')
+            # debug.magenta(f'intruder_cos_bearing: {self.intruder_cos_bearing}, shape: {np.array(self.intruder_cos_bearing).shape}')
+            # debug.magenta(f'intruder_sin_bearing: {self.intruder_sin_bearing}')
 
             intruders_heading = np.delete(bs.traf.hdg, i)
             intruders_speed = np.delete(bs.traf.gs, i)
-            debug.magenta(f'intruders_heading: {intruders_heading}')
+            # debug.magenta(f'intruders_heading: {intruders_heading}')
             # debug.magenta(f'intruders_speed: {intruders_speed}')
             # debug.yellow(f"bs.traf.hdg[i]: {bs.traf.hdg[i]}")
             heading_difference = bs.traf.hdg[i] - intruders_heading
@@ -420,34 +418,34 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             #check is this calculation correct?????
             x_dif = - np.cos(np.deg2rad(heading_difference)) * intruders_speed
             y_dif = bs.traf.gs[ac_idx] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
-            debug.gray(f'x_dif: {x_dif}')
-            debug.gray(f'y_dif: {y_dif}')
+            # debug.gray(f'x_dif: {x_dif}')
+            # debug.gray(f'y_dif: {y_dif}')
             self.intruder_x_difference_speed.append(x_dif)
             self.intruder_y_difference_speed.append(y_dif)
-            debug.orange(f'intruder_x_difference_speed: {self.intruder_x_difference_speed}')
-            debug.black(f'intruder_y_difference_speed: {self.intruder_y_difference_speed}')
+            # debug.orange(f'intruder_x_difference_speed: {self.intruder_x_difference_speed}')
+            # debug.black(f'intruder_y_difference_speed: {self.intruder_y_difference_speed}')
 
         # destination waypoint observation
         wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, self.wpt_lat, self.wpt_lon)
-        debug.red(f'wpt_qdr: {wpt_qdr}')
-        debug.red(f'wpt_dis: {wpt_dis}')
+        # debug.red(f'wpt_qdr: {wpt_qdr}')
+        # debug.red(f'wpt_dis: {wpt_dis}')
     
         self.destination_waypoint_distance.append(wpt_dis * NM2KM)
         self.wpt_qdr.append(wpt_qdr)
-        debug.blue(f'destination_waypoint_distance: {self.destination_waypoint_distance}, shape: {np.array(self.destination_waypoint_distance).shape}')
-        debug.blue(f'wpt_qdr: {self.wpt_qdr}, shape: {np.array(self.wpt_qdr).shape}')
+        # debug.blue(f'destination_waypoint_distance: {self.destination_waypoint_distance}, shape: {np.array(self.destination_waypoint_distance).shape}')
+        # debug.blue(f'wpt_qdr: {self.wpt_qdr}, shape: {np.array(self.wpt_qdr).shape}')
 
         drift = bs.traf.hdg - wpt_qdr
         for drift_idx in range(len(drift)):
             drift[drift_idx] = fn.bound_angle_positive_negative_180(drift[drift_idx])
         # drift = fn.bound_angle_positive_negative_180(drift)
-        debug.green(f'drift: {drift}, shape: {np.array(drift).shape}')
+        # debug.green(f'drift: {drift}, shape: {np.array(drift).shape}')
 
         self.destination_waypoint_drift.append(drift)
         self.destination_waypoint_cos_drift.append(np.cos(np.deg2rad(drift)))
         self.destination_waypoint_sin_drift.append(np.sin(np.deg2rad(drift)))
-        debug.cyan(f'destination_waypoint_cos_drift: {self.destination_waypoint_cos_drift}, shape: {np.array(self.destination_waypoint_cos_drift).shape}')
-        debug.cyan(f'destination_waypoint_sin_drift: {self.destination_waypoint_sin_drift}, shape: {np.array(self.destination_waypoint_sin_drift).shape}')
+        # debug.cyan(f'destination_waypoint_cos_drift: {self.destination_waypoint_cos_drift}, shape: {np.array(self.destination_waypoint_cos_drift).shape}')
+        # debug.cyan(f'destination_waypoint_sin_drift: {self.destination_waypoint_sin_drift}, shape: {np.array(self.destination_waypoint_sin_drift).shape}')
 
         # other aircraft destination waypoints
         # for i in range(NUM_INTRUDERS):
@@ -468,9 +466,9 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
-        debug.yellow(f'obstacle_centre_distance: {self.obstacle_centre_distance}, shape: {np.array(self.obstacle_centre_distance).shape}')
-        debug.yellow(f'obstacle_centre_cos_bearing: {self.obstacle_centre_cos_bearing}, shape: {np.array(self.obstacle_centre_cos_bearing).shape}')
-        debug.yellow(f'obstacle_centre_sin_bearing: {self.obstacle_centre_sin_bearing}, shape: {np.array(self.obstacle_centre_sin_bearing).shape}')
+        # debug.yellow(f'obstacle_centre_distance: {self.obstacle_centre_distance}, shape: {np.array(self.obstacle_centre_distance).shape}')
+        # debug.yellow(f'obstacle_centre_cos_bearing: {self.obstacle_centre_cos_bearing}, shape: {np.array(self.obstacle_centre_cos_bearing).shape}')
+        # debug.yellow(f'obstacle_centre_sin_bearing: {self.obstacle_centre_sin_bearing}, shape: {np.array(self.obstacle_centre_sin_bearing).shape}')
 
         observation = {
                 "intruder_distance": np.array(self.intruder_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
@@ -488,8 +486,8 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1)
             }
 
-        for key, value in observation.items():
-            print(f"{key}: {value.shape}")
+        # for key, value in observation.items():
+        #     print(f"{key}: {value.shape}")
         # debug.orange(f'observation: {observation}, shape: {np.array(observation).shape}')
 
         return observation
@@ -508,8 +506,11 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         }
 
     def _get_reward(self):
+        # import debug
         reach_reward = self._check_waypoint()
+        # debug.black(f'reach_reward: {reach_reward}, shape: {np.array(reach_reward).shape}, type: {type(reach_reward)}')
         drift_reward = self._check_drift()
+        # debug.gray(f'drift_reward: {drift_reward}, shape: {np.array(drift_reward).shape}, type: {type(drift_reward)}')
         intrusion_other_ac_reward = self._check_intrusion_other_ac()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
 
@@ -526,7 +527,10 @@ class CentralisedStaticObstacleCREnv(gym.Env):
     def _check_waypoint(self):
         reward = 0
         index = 0
-        for distance in self.destination_waypoint_distance:
+        # import debug
+        # debug.red(f'destination_waypoint_distance: {np.array(self.destination_waypoint_distance).reshape(-1)}, shape: {np.array(self.destination_waypoint_distance).shape}, type: {type(self.destination_waypoint_distance)}')
+        for distance in np.array(self.destination_waypoint_distance).reshape(-1):
+            # debug.green(f'Checking waypoint {index+1} with distance {distance}')
             if distance < DISTANCE_MARGIN and self.wpt_reach[index] != 1:
                 self.waypoint_reached = 1
                 self.wpt_reach[index] = 1
@@ -543,27 +547,36 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return reward
 
     def _check_drift(self):
-        drift = abs(np.deg2rad(self.destination_waypoint_drift[0]))
+
+        # import debug
+        # debug.yellow(f'destination_waypoint_drift: {self.destination_waypoint_drift}, shape: {np.array(self.destination_waypoint_drift).shape}, type: {type(self.destination_waypoint_drift)}')
+        drift = abs(np.deg2rad(self.destination_waypoint_drift))
+        # debug.orange(f'drift: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
         self.average_drift = np.append(self.average_drift, drift)
-        return drift * DRIFT_PENALTY
+        # debug.pink(f'average_drift: {self.average_drift}, shape: {self.average_drift.shape}, type: {type(self.average_drift)}')
+        # debug.blue(f'drift * DRIFT_PENALTY: {drift * DRIFT_PENALTY}, shape: {np.array(drift * DRIFT_PENALTY).shape}, type: {type(drift * DRIFT_PENALTY)}')
+        return np.sum(drift * DRIFT_PENALTY)
     
     def _check_intrusion_other_ac(self):
-        ac_idx = bs.traf.id2idx('AC1')
-        reward = 0
-        for i in range(NUM_INTRUDERS):
-            int_idx = i+1
-            _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
-            if int_dis < INTRUSION_DISTANCE:
-                reward += AC_INTRUSION_PENALTY
+        I, J = np.triu_indices(len(bs.traf.lat), k=1)  # all pairs with j > i
+
+        _, dist = bs.tools.geo.kwikqdrdist(bs.traf.lat[I], bs.traf.lon[I], bs.traf.lat[J], bs.traf.lon[J])
+
+        reward = AC_INTRUSION_PENALTY * np.count_nonzero(dist < INTRUSION_DISTANCE)                
+            # int_idx = i+1
+            # _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
+            # if int_dis < INTRUSION_DISTANCE:
+            #     reward += AC_INTRUSION_PENALTY
         return reward
 
     def _check_intrusion(self):
-        ac_idx = bs.traf.id2idx('AC1')
         reward = 0
         terminate = 0
         for obs_idx in range(NUM_OBSTACLES):
-            if bs.tools.areafilter.checkInside(self.obstacle_names[obs_idx], np.array([bs.traf.lat[ac_idx]]), np.array([bs.traf.lon[ac_idx]]), np.array([bs.traf.alt[ac_idx]])):
-                reward += RESTRICTED_AREA_INTRUSION_PENALTY
+            ac_inside = bs.tools.areafilter.checkInside(self.obstacle_names[obs_idx], bs.traf.lat, bs.traf.lon, bs.traf.alt)
+            if np.any(ac_inside): # check if any aircraft is inside the obstacle
+                n_violations = np.count_nonzero(ac_inside)
+                reward += RESTRICTED_AREA_INTRUSION_PENALTY * n_violations
                 self.crashed = 1
                 terminate = 1
         return reward, terminate
