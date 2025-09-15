@@ -40,9 +40,8 @@ MpS2Kt = 1.94384
 ACTION_FREQUENCY = 10
 ## for obstacles generation
 NUM_OBSTACLES = 10 #np.random.randint(1,5)
-NUM_INTRUDERS = 5
 NUM_AC = 10
-NUM_AC_STATE = NUM_AC #check if this is not just redundant 
+NUM_INTRUDERS = NUM_AC # number of aircraft to include in the observation (if we decide to only have the N closest aircraft to be visible to the RL agent). This variable is equivalent to variable NUM_AC_STATE in the merge environment
 INTRUSION_DISTANCE = 5 # NM
 
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
@@ -70,22 +69,24 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         # Maybe later also have an option for CNN based intruder and obstacle info, could be interesting
         self.observation_space = spaces.Dict(
             {   
-                "intruder_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_INTRUDERS,), dtype=np.float64),
-                "intruder_cos_difference_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_INTRUDERS,), dtype=np.float64),
-                "intruder_sin_difference_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_INTRUDERS,), dtype=np.float64),
-                "intruder_x_difference_speed": spaces.Box(-np.inf, np.inf, shape = (NUM_INTRUDERS,), dtype=np.float64),
-                "intruder_y_difference_speed": spaces.Box(-np.inf, np.inf, shape = (NUM_INTRUDERS,), dtype=np.float64),
-                "destination_waypoint_distance": spaces.Box(-np.inf, np.inf, shape = (1,), dtype=np.float64),
-                "destination_waypoint_cos_drift": spaces.Box(-np.inf, np.inf, shape = (1,), dtype=np.float64),
-                "destination_waypoint_sin_drift": spaces.Box(-np.inf, np.inf, shape = (1,), dtype=np.float64),
+                "intruder_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_INTRUDERS-NUM_AC,), dtype=np.float64),
+                "intruder_cos_difference_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_INTRUDERS-NUM_AC,), dtype=np.float64),
+                "intruder_sin_difference_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_INTRUDERS-NUM_AC,), dtype=np.float64),
+                "intruder_x_difference_speed": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_INTRUDERS-NUM_AC,), dtype=np.float64),
+                "intruder_y_difference_speed": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_INTRUDERS-NUM_AC,), dtype=np.float64),
+                "destination_waypoint_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
+                "destination_waypoint_cos_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
+                "destination_waypoint_sin_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
                 "restricted_area_radius": spaces.Box(0, 1, shape = (NUM_OBSTACLES,), dtype=np.float64),
-                "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES, ), dtype=np.float64),
-                "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64),
-                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64)
+                "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES, ), dtype=np.float64),
+                "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
+                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64)
             }
         )
-       
-        self.action_space = spaces.Box(-1, 1, shape=(2*NUM_AC_STATE,), dtype=np.float64)
+        import debug
+        debug.pink(f'observation_space: {self.observation_space}, shape: {self.observation_space.shape}')
+
+        self.action_space = spaces.Box(-1, 1, shape=(2*NUM_AC,), dtype=np.float64)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -381,80 +382,115 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         self.obstacle_centre_cos_bearing = []
         self.obstacle_centre_sin_bearing = []
         
-        self.ac_hdg = bs.traf.hdg[ac_idx]
+        # self.ac_hdg = bs.traf.hdg[ac_idx]
         
         # other aircraft destination waypoints
-        self.other_ac_destination_waypoint_distance = []
-
+        # self.other_ac_destination_waypoint_distance = []
+        import debug
         # intruders observation
-        for i in range(NUM_INTRUDERS):
-            int_idx = i+1
-            int_qdr, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
-        
+        for i in range(NUM_AC):
+
+            intruders_lat = np.delete(bs.traf.lat, i)
+            intruders_lon = np.delete(bs.traf.lon, i)
+            # debug.red(f'intruders lat: {intruders_lat}')
+            # debug.red(f'intruders lon: {intruders_lon}')
+            int_qdr, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[i], bs.traf.lon[i], intruders_lat, intruders_lon)
+            # debug.green(f'int_qdr: {int_qdr}')
+            # debug.green(f'int_dis: {int_dis}')
             self.intruder_distance.append(int_dis * NM2KM)
+            debug.cyan(f'intruder_distance: {self.intruder_distance}')
+            bearing = bs.traf.hdg[i] - int_qdr
+            for bearing_idx in range(len(bearing)):
+                bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
 
-            bearing = self.ac_hdg - int_qdr
-            bearing = fn.bound_angle_positive_negative_180(bearing)
-
+            # debug.yellow(f'bearing: {bearing}')
             self.intruder_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.intruder_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
-            heading_difference = bs.traf.hdg[ac_idx] - bs.traf.hdg[int_idx]
-            x_dif = - np.cos(np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
-            y_dif = bs.traf.gs[ac_idx] - np.sin(np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
+            debug.magenta(f'intruder_cos_bearing: {self.intruder_cos_bearing}, shape: {np.array(self.intruder_cos_bearing).shape}')
+            debug.magenta(f'intruder_sin_bearing: {self.intruder_sin_bearing}')
 
+            intruders_heading = np.delete(bs.traf.hdg, i)
+            intruders_speed = np.delete(bs.traf.gs, i)
+            debug.magenta(f'intruders_heading: {intruders_heading}')
+            # debug.magenta(f'intruders_speed: {intruders_speed}')
+            # debug.yellow(f"bs.traf.hdg[i]: {bs.traf.hdg[i]}")
+            heading_difference = bs.traf.hdg[i] - intruders_heading
+            # debug.blue(f'heading_difference: {heading_difference}')
+            #check is this calculation correct?????
+            x_dif = - np.cos(np.deg2rad(heading_difference)) * intruders_speed
+            y_dif = bs.traf.gs[ac_idx] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
+            debug.gray(f'x_dif: {x_dif}')
+            debug.gray(f'y_dif: {y_dif}')
             self.intruder_x_difference_speed.append(x_dif)
             self.intruder_y_difference_speed.append(y_dif)
-
+            debug.orange(f'intruder_x_difference_speed: {self.intruder_x_difference_speed}')
+            debug.black(f'intruder_y_difference_speed: {self.intruder_y_difference_speed}')
 
         # destination waypoint observation
-        self.ac_hdg = bs.traf.hdg[ac_idx]
-        self.ac_tas = bs.traf.tas[ac_idx]
-        wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
+        wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, self.wpt_lat, self.wpt_lon)
+        debug.red(f'wpt_qdr: {wpt_qdr}')
+        debug.red(f'wpt_dis: {wpt_dis}')
     
         self.destination_waypoint_distance.append(wpt_dis * NM2KM)
         self.wpt_qdr.append(wpt_qdr)
+        debug.blue(f'destination_waypoint_distance: {self.destination_waypoint_distance}, shape: {np.array(self.destination_waypoint_distance).shape}')
+        debug.blue(f'wpt_qdr: {self.wpt_qdr}, shape: {np.array(self.wpt_qdr).shape}')
 
-        drift = self.ac_hdg - wpt_qdr
-        drift = fn.bound_angle_positive_negative_180(drift)
+        drift = bs.traf.hdg - wpt_qdr
+        for drift_idx in range(len(drift)):
+            drift[drift_idx] = fn.bound_angle_positive_negative_180(drift[drift_idx])
+        # drift = fn.bound_angle_positive_negative_180(drift)
+        debug.green(f'drift: {drift}, shape: {np.array(drift).shape}')
 
         self.destination_waypoint_drift.append(drift)
         self.destination_waypoint_cos_drift.append(np.cos(np.deg2rad(drift)))
         self.destination_waypoint_sin_drift.append(np.sin(np.deg2rad(drift)))
+        debug.cyan(f'destination_waypoint_cos_drift: {self.destination_waypoint_cos_drift}, shape: {np.array(self.destination_waypoint_cos_drift).shape}')
+        debug.cyan(f'destination_waypoint_sin_drift: {self.destination_waypoint_sin_drift}, shape: {np.array(self.destination_waypoint_sin_drift).shape}')
 
         # other aircraft destination waypoints
-        for i in range(NUM_INTRUDERS):
-            other_ac_idx = i+1
-            wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx], self.wpt_lat[other_ac_idx], self.wpt_lon[other_ac_idx])
-            self.other_ac_destination_waypoint_distance.append(wpt_dis * NM2KM)
+        # for i in range(NUM_INTRUDERS):
+        #     other_ac_idx = i+1
+        #     wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx], self.wpt_lat[other_ac_idx], self.wpt_lon[other_ac_idx])
+        #     self.other_ac_destination_waypoint_distance.append(wpt_dis * NM2KM)
 
         # obstacles observations
         for obs_idx in range(NUM_OBSTACLES):
-            obs_centre_qdr, obs_centre_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat[obs_idx], self.obstacle_centre_lon[obs_idx])
+            obs_centre_qdr, obs_centre_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, self.obstacle_centre_lat[obs_idx], self.obstacle_centre_lon[obs_idx])
             obs_centre_dis = obs_centre_dis * NM2KM #KM        
 
-            bearing = self.ac_hdg - obs_centre_qdr
-            bearing = fn.bound_angle_positive_negative_180(bearing)
+            bearing = bs.traf.hdg - obs_centre_qdr
+            # bearing = fn.bound_angle_positive_negative_180(bearing)
+            for bearing_idx in range(len(bearing)):
+                bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
 
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
+        debug.yellow(f'obstacle_centre_distance: {self.obstacle_centre_distance}, shape: {np.array(self.obstacle_centre_distance).shape}')
+        debug.yellow(f'obstacle_centre_cos_bearing: {self.obstacle_centre_cos_bearing}, shape: {np.array(self.obstacle_centre_cos_bearing).shape}')
+        debug.yellow(f'obstacle_centre_sin_bearing: {self.obstacle_centre_sin_bearing}, shape: {np.array(self.obstacle_centre_sin_bearing).shape}')
 
         observation = {
-                "intruder_distance": np.array(self.intruder_distance)/WAYPOINT_DISTANCE_MAX,
-                "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing),
-                "intruder_sin_difference_pos": np.array(self.intruder_sin_bearing),
-                "intruder_x_difference_speed": np.array(self.intruder_x_difference_speed)/AC_SPD,
-                "intruder_y_difference_speed": np.array(self.intruder_y_difference_speed)/AC_SPD,
-                "destination_waypoint_distance": np.array(self.destination_waypoint_distance)/WAYPOINT_DISTANCE_MAX,
-                "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift),
-                "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift),
+                "intruder_distance": np.array(self.intruder_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing).reshape(-1),
+                "intruder_sin_difference_pos": np.array(self.intruder_sin_bearing).reshape(-1),
+                "intruder_x_difference_speed": np.array(self.intruder_x_difference_speed).reshape(-1)/AC_SPD,
+                "intruder_y_difference_speed": np.array(self.intruder_y_difference_speed).reshape(-1)/AC_SPD,
+                "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
+                "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
                 # observations on obstacles
-                "restricted_area_radius": np.array(self.obstacle_radius)/(POLY_AREA_RANGE[0]),
-                "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
-                "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
-                "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
+                "restricted_area_radius": np.array(self.obstacle_radius).reshape(-1)/(POLY_AREA_RANGE[0]),
+                "restricted_area_distance": np.array(self.obstacle_centre_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing).reshape(-1),
+                "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1)
             }
+
+        for key, value in observation.items():
+            print(f"{key}: {value.shape}")
+        # debug.orange(f'observation: {observation}, shape: {np.array(observation).shape}')
 
         return observation
     
