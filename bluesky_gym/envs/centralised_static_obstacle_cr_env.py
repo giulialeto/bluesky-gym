@@ -39,8 +39,8 @@ MpS2Kt = 1.94384
 
 ACTION_FREQUENCY = 10
 ## for obstacles generation
-NUM_OBSTACLES = 10 #np.random.randint(1,5)
-NUM_AC = 10
+NUM_OBSTACLES = 3 #np.random.randint(1,5)
+NUM_AC = 5
 NUM_INTRUDERS = NUM_AC # number of aircraft to include in the observation (if we decide to only have the N closest aircraft to be visible to the RL agent). This variable is equivalent to variable NUM_AC_STATE in the merge environment
 INTRUSION_DISTANCE = 5 # NM
 
