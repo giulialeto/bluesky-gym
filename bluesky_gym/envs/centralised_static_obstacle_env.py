@@ -500,9 +500,6 @@ class CentralisedStaticObstacleEnv(gym.Env):
             # if not baseline_test:
             bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
             bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
-            import debug
-            debug.cyan(f"AC{ind_ac} HDG {heading_new} SPD {speed_new}")
-
 
     def _render_frame(self):
         # options for rendering
