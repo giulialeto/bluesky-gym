@@ -592,18 +592,14 @@ class StaticObstacleCREnv(gym.Env):
     
     def _check_waypoint(self):
         reward = 0
-        index = 0
-        for distance in self.destination_waypoint_distance:
-            if distance < DISTANCE_MARGIN and self.wpt_reach[index] != 1:
-                self.waypoint_reached = 1
-                self.wpt_reach[index] = 1
-                reward += REACH_REWARD
-                index += 1
-            else:
-                reward += 0
-                index += 1
+        if self.destination_waypoint_distance[0] < DISTANCE_MARGIN and self.wpt_reach[0] != 1:
+            self.wpt_reach[0] = 1
+            self.waypoint_reached = 1
+            reward += REACH_REWARD
+        else:
+            reward += 0
         
-        for other_ac_wpt_reach_idx in range(len(self.wpt_reach)-1):
+        for other_ac_wpt_reach_idx in range(len(self.other_ac_destination_waypoint_distance)):
             if self.other_ac_destination_waypoint_distance[other_ac_wpt_reach_idx] < DISTANCE_MARGIN and self.wpt_reach[other_ac_wpt_reach_idx+1] != 1:
                 self.wpt_reach[other_ac_wpt_reach_idx+1] = 1
 
