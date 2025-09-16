@@ -517,7 +517,7 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
 
         done = 0
-        if self.wpt_reach[0] == 1:
+        if np.all(self.wpt_reach):
             done = 1
         elif intrusion_terminate:
             done = 1
@@ -547,14 +547,13 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return reward
 
     def _check_drift(self):
-
-        # import debug
-        # debug.yellow(f'destination_waypoint_drift: {self.destination_waypoint_drift}, shape: {np.array(self.destination_waypoint_drift).shape}, type: {type(self.destination_waypoint_drift)}')
-        drift = abs(np.deg2rad(self.destination_waypoint_drift))
-        # debug.orange(f'drift: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
+        for i in range(len(self.destination_waypoint_drift)): 
+            if self.wpt_reach[i] != 1:
+                drift = abs(np.deg2rad(self.destination_waypoint_drift[i]))
+            else:
+                drift = 0
+        # drift = abs(np.deg2rad(self.destination_waypoint_drift))
         self.average_drift = np.append(self.average_drift, drift)
-        # debug.pink(f'average_drift: {self.average_drift}, shape: {self.average_drift.shape}, type: {type(self.average_drift)}')
-        # debug.blue(f'drift * DRIFT_PENALTY: {drift * DRIFT_PENALTY}, shape: {np.array(drift * DRIFT_PENALTY).shape}, type: {type(drift * DRIFT_PENALTY)}')
         return np.sum(drift * DRIFT_PENALTY)
     
     def _check_intrusion_other_ac(self):
