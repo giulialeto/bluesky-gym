@@ -86,9 +86,9 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES, ), dtype=np.float64),
                 "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
                 "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
-                "sector_points_distance": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
-                "sector_points_cos_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
-                "sector_points_sin_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64)                
+                "sector_points_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_cos_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_sin_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*TOTAL_OBSERVATION_POINTS,), dtype=np.float64)                
             }
         )
 
@@ -559,34 +559,44 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
+        # import debug
         # debug.yellow(f'obstacle_centre_distance: {self.obstacle_centre_distance}, shape: {np.array(self.obstacle_centre_distance).shape}')
         # debug.yellow(f'obstacle_centre_cos_bearing: {self.obstacle_centre_cos_bearing}, shape: {np.array(self.obstacle_centre_cos_bearing).shape}')
         # debug.yellow(f'obstacle_centre_sin_bearing: {self.obstacle_centre_sin_bearing}, shape: {np.array(self.obstacle_centre_sin_bearing).shape}')
 
         # Get vertices and points along the edges of the sector
         sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
+        # import debug
+        # debug.orange(f'sector_points: {sector_points}, shape: {sector_points.shape}, type: {type(sector_points)}')
+        # debug.red(f'sector_points[:, 0]: {sector_points[:,0]}, shape: {sector_points[:,0].shape}, type: {type(sector_points[:,0])}')
+        # debug.red(f'sector_points[:, 1]: {sector_points[:,1]}, shape: {sector_points[:,1].shape}, type: {type(sector_points[:,1])}')
+        # Calculate distance and bearing from each ownship to each of the sector points
+        for point_index in range(len(sector_points)):
+            # print(f'point_index: {point_index}')
+            sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, sector_points[point_index,0], sector_points[point_index,1])
+            # debug.red(f'sector_points_qdr: {sector_points_qdr}, shape: {sector_points_qdr.shape}, type: {type(sector_points_qdr)}')
+            # debug.red(f'sector_points_dis: {sector_points_dis}, shape: {sector_points_dis.shape}, type: {type(sector_points_dis)}')
+            # Convert distances to kilometers
+            #for sector_point in sector_points_dis:
+            self.sector_points_distance.append(sector_points_dis * NM2KM)
 
-        sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], sector_points[:,0], sector_points[:,1])
+            drift = bs.traf.hdg - sector_points_qdr
+            # debug.green(f'drift before bounding: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
+            # bearing = fn.bound_angle_positive_negative_180(bearing)
+            for drift_idx in range(len(drift)):
+                drift[drift_idx] = fn.bound_angle_positive_negative_180(drift[drift_idx])
+            # debug.magenta(f'drift after bounding: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
+            self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift)))
+            self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift)))
         
-        # Convert distances to kilometers
-        for sector_point in sector_points_dis:
-            self.sector_points_distance.append(sector_point * NM2KM)
-            
-        # Calculate drift for sector points
-        self.ac_hdg = bs.traf.hdg[0]
-        drift = self.ac_hdg - sector_points_qdr
-        drift_temp = []
-        for drift_angle in drift:
-            drift_angle = fn.bound_angle_positive_negative_180(drift_angle)
-            drift_temp.append(drift_angle)
-        drift = np.array(drift_temp)
-
+            # debug.blue(f'sector_points_distance: {self.sector_points_distance}, shape: {np.array(self.sector_points_distance).shape}, type: {type(self.sector_points_distance)}')
+            # debug.light_blue(f'sector_points_cos_drift: {self.sector_points_cos_drift}, shape: {np.array(self.sector_points_cos_drift).shape}, type: {type(self.sector_points_cos_drift)}')
+            # debug.light_green(f'sector_points_sin_drift: {self.sector_points_sin_drift}, shape: {np.array(self.sector_points_sin_drift).shape}, type: {type(self.sector_points_sin_drift)}')
+        
         # Calculate cosine and sine of the drift angles
-        for drift_from_point in drift:
-            self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
-            self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
-
-
+        # for drift_from_point in drift:
+        #     self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
+        #     self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
 
         observation = {
                 "intruder_distance": np.array(self.intruder_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
@@ -603,12 +613,12 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing).reshape(-1),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1),
                 # observations on sector polygon edges and points along the edges
-                "sector_points_distance": np.array(self.sector_points_distance)/WAYPOINT_DISTANCE_MAX,
-                "sector_points_cos_drift": np.array(self.sector_points_cos_drift),
-                "sector_points_sin_drift": np.array(self.sector_points_sin_drift),
+                "sector_points_distance": np.array(self.sector_points_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "sector_points_cos_drift": np.array(self.sector_points_cos_drift).reshape(-1),
+                "sector_points_sin_drift": np.array(self.sector_points_sin_drift).reshape(-1)
 
             }
-
+        # import debug
         # for key, value in observation.items():
         #     print(f"{key}: {value.shape}")
         # debug.orange(f'observation: {observation}, shape: {np.array(observation).shape}')
