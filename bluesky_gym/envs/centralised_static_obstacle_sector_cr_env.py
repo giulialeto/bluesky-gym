@@ -449,8 +449,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         return np.array(all_points)
 
     def _get_obs(self):
-        ac_idx = bs.traf.id2idx('AC1')
-
         self.intruder_distance = []
         self.intruder_cos_bearing = []
         self.intruder_sin_bearing = []
@@ -508,9 +506,8 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             # debug.yellow(f"bs.traf.hdg[i]: {bs.traf.hdg[i]}")
             heading_difference = bs.traf.hdg[i] - intruders_heading
             # debug.blue(f'heading_difference: {heading_difference}')
-            #check is this calculation correct?????
             x_dif = - np.cos(np.deg2rad(heading_difference)) * intruders_speed
-            y_dif = bs.traf.gs[ac_idx] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
+            y_dif = bs.traf.gs[i] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
             # debug.gray(f'x_dif: {x_dif}')
             # debug.gray(f'y_dif: {y_dif}')
             self.intruder_x_difference_speed.append(x_dif)
@@ -750,9 +747,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             # import debug
             # debug.red(action_index*2)
             # debug.green(action_index*2+1)
-            #check with Sasha I think there is a bug here... +1 should be *2 +1
-            # dv = action[action_index+1] * D_SPEED
-            # dh = action[action_index] * D_HEADING
 
             dv = action[action_index*2+1] * D_SPEED
             dh = action[action_index*2] * D_HEADING
