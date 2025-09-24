@@ -25,8 +25,9 @@ OBSTACLE_DISTANCE_MAX = 150 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
+MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
-AC_SPD = 150 # m/s (CAS - typical commertial airliner cruise value)
+AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
 
 NM2KM = 1.852

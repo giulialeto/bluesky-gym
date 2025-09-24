@@ -29,10 +29,11 @@ OTHER_AC_DISTANCE_MIN = 50 # KM
 OTHER_AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # kts (check)
+D_SPEED = 20/3 # m/s
 
-AC_SPD = 150 # kts
+AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
+MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -635,10 +636,11 @@ class StaticObstacleCREnv(gym.Env):
         dh = action[0] * D_HEADING
         dv = action[1] * D_SPEED
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
-        speed_new = (bs.traf.tas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
 
         bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        # bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new/MACH_CRUISE}") # CAS(knots)/MACH
 
     def _render_frame(self):
         # options for rendering

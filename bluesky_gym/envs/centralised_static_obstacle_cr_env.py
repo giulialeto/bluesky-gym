@@ -29,9 +29,10 @@ AC_DISTANCE_MIN = 50 # KM
 AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # kts (check)
+D_SPEED = 20/3 # m/s
+MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
-AC_SPD = 150 # kts
+AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
 
 NM2KM = 1.852
@@ -604,13 +605,13 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             ind_ac = self.ac_indices[i] # this is to map the controll-ee to the instantaneous action space (since we change ac)
 
             heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx(f'AC{ind_ac}')] + dh)
-            speed_new = (bs.traf.tas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
+            speed_new = (bs.traf.cas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
             # speed_new = speed_new if speed_new>0 else 0
             
             # if not baseline_test:
             bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
-            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
-
+            # bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
+            bs.stack.stack(f"SPD AC{ind_ac} {speed_new/MACH_CRUISE}")
 
     def _render_frame(self):
         # options for rendering

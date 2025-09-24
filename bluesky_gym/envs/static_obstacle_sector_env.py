@@ -25,9 +25,10 @@ OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # kts (check)
+D_SPEED = 20/3 # m/s
+MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
-AC_SPD = 150 # kts
+AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
 
 NM2KM = 1.852
@@ -544,7 +545,8 @@ class StaticObstacleSectorEnv(gym.Env):
         speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
 
         bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        # bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new/MACH_CRUISE}")
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
