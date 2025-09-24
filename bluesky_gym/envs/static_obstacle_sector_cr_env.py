@@ -141,11 +141,7 @@ class StaticObstacleSectorCREnv(gym.Env):
         lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(CENTER[0], CENTER[1], 315, d/NM2KM)
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
-<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
-        
-=======
 
->>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
         bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
         ac_idx = bs.traf.id2idx('KL001')
         
@@ -204,30 +200,23 @@ class StaticObstacleSectorCREnv(gym.Env):
         self.counter += 1
         self._get_action(action)
 
-        for i in range(ACTION_FREQUENCY):
+        action_frequency = ACTION_FREQUENCY
+        for i in range(action_frequency):
             bs.sim.step()
             if self.render_mode == "human":
                 self._render_frame()
-            reward, done, truncated = self._get_reward()
-            if truncated:
+            reward, done, terminated = self._get_reward()
+            if terminated:
                 observation = self._get_obs()
                 info = self._get_info()
                 self.total_reward += reward
-<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
-                return observation, reward, done, truncated, info
-=======
                 return observation, reward, done, terminated, info
->>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
 
         observation = self._get_obs()
-        reward, done, truncated = self._get_reward()
+        reward, done, terminated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
-<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
-        return observation, reward, done, truncated, info
-    
-=======
         return observation, reward, done, terminated, info
 
     def _generate_sector(self):
@@ -292,9 +281,7 @@ class StaticObstacleSectorCREnv(gym.Env):
 
         return np.array(all_points)
 
->>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
-        
         self.other_aircraft_names = []
         for i in range(num_other_aircraft): 
             other_aircraft_name = 'AC' + str(i+1)
@@ -723,7 +710,7 @@ class StaticObstacleSectorCREnv(gym.Env):
         else:
             reward += 0
         
-        for other_ac_wpt_reach_idx in range(len(self.other_ac_destination_waypoint_distance)):
+        for other_ac_wpt_reach_idx in range(len(self.wpt_reach)-1):
             if self.other_ac_destination_waypoint_distance[other_ac_wpt_reach_idx] < DISTANCE_MARGIN and self.wpt_reach[other_ac_wpt_reach_idx+1] != 1:
                 self.wpt_reach[other_ac_wpt_reach_idx+1] = 1
 
@@ -872,10 +859,6 @@ class StaticObstacleSectorCREnv(gym.Env):
 
             int_qdr, int_dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
 
-<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
-            # determine color
-=======
->>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
             # determine if intruder is within the minimum separation distance
             _, int_dis_ownship = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
             
@@ -967,8 +950,4 @@ class StaticObstacleSectorCREnv(gym.Env):
             pygame.time.wait(100)
 
     def close(self):
-<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
-        bs.stack.stack('quit')
-=======
         bs.stack.stack("quit")
->>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
