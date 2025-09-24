@@ -9,12 +9,13 @@ def moving_average(x, w):
 
 # Parameters
 models = ["PPO", "SAC", "TD3", "DDPG"]
-env = "StaticObstacleEnv-v0"  # Target environment
+models = ["SAC"]
+env = "StaticObstacleCREnv-v0"  # Target environment
 ave_window = 1000
 feature = 'total_reward'
 
 # Set the output file name and folder
-output_folder = "figures-results"
+output_folder = "figures_results"
 output_filename = f"{env}-results.pdf"
 os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
 output_path = os.path.join(output_folder, output_filename)

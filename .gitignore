@@ -10,3 +10,5 @@ bluesky_gym/envs/common/deterministic_path_planning_old.py
 bluesky_gym/envs/common/tools_deterministic_path_planning_old.py
 debug.py
 de-bugging_obstacles/
+logs_backup/
+figures_results/
