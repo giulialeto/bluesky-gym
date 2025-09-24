@@ -29,7 +29,6 @@ csv_logger_callback = logger.CSVLoggerCallback(log_dir, file_name)
 TRAIN = True
 EVAL_EPISODES = 10
 
-
 if __name__ == "__main__":
     env = gym.make(env_name, render_mode=None)
     # obs, info = env.reset()
