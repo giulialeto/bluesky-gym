@@ -18,6 +18,7 @@ REACH_REWARD = 1 # reach set waypoint
 DRIFT_PENALTY = -0.01
 AC_INTRUSION_PENALTY = -5
 RESTRICTED_AREA_INTRUSION_PENALTY = -5
+SECTOR_EXIT_PENALTY = -4
 
 WAYPOINT_DISTANCE_MIN = 180 # KM
 WAYPOINT_DISTANCE_MAX = 400 # KM
@@ -46,13 +47,18 @@ INTRUSION_DISTANCE = 5 # NM
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
 NUM_WAYPOINTS = NUM_INTRUDERS + 1
 
-POLY_AREA_RANGE = (50, 1000) # In NM^2
+OBSTACLE_AREA_RANGE = (50, 1000) # In NM^2
+# Sector polygon area range
+SECTOR_AREA_RANGE = (15000, 23001) # In NM^2
+
 # CENTER = (51.990426702297746, 4.376124857109851) # TU Delft AE Faculty coordinates
 CENTER = (52., 4.) # TU Delft AE Faculty coordinates
 
 MAX_DISTANCE = 350 # width of screen in km
 
-class StaticObstacleCREnv(gym.Env):
+TOTAL_OBSERVATION_POINTS = 50 # Number of points to be observed along the sector polygon edges
+
+class StaticObstacleSectorCREnv(gym.Env):
     """ 
     Static Obstacle Conflict Resolution Environment
     The environment simulates a 2D airspace where an ownship (the agent) must navigate to a series of waypoints while avoiding collisions with other aircraft and static obstacles.
@@ -79,7 +85,10 @@ class StaticObstacleCREnv(gym.Env):
                 "restricted_area_radius": spaces.Box(0, 1, shape = (NUM_OBSTACLES,), dtype=np.float64),
                 "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES, ), dtype=np.float64),
                 "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64),
-                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64)
+                "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_OBSTACLES,), dtype=np.float64),
+                "sector_points_distance": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_cos_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64),
+                "sector_points_sin_drift": spaces.Box(-np.inf, np.inf, shape = (TOTAL_OBSERVATION_POINTS,), dtype=np.float64)
             }
         )
        
@@ -100,8 +109,10 @@ class StaticObstacleCREnv(gym.Env):
         self.total_reward = 0
         self.waypoint_reached = 0
         self.crashed = 0
+        self.exited_sector = 0
         self.average_drift = np.array([])
 
+        self._generate_sector() # Create airspace polygon
         self.obstacle_names = []
 
         self.window = None
@@ -117,6 +128,7 @@ class StaticObstacleCREnv(gym.Env):
         self.total_reward = 0
         self.waypoint_reached = 0
         self.crashed = 0
+        self.exited_sector = 0
         self.average_drift = np.array([])
         self.impossible_route_counter = 0
 
@@ -129,7 +141,11 @@ class StaticObstacleCREnv(gym.Env):
         lat_ref_point,lon_ref_point = bs.tools.geo.kwikpos(CENTER[0], CENTER[1], 315, d/NM2KM)
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
+<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
         
+=======
+
+>>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
         bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
         ac_idx = bs.traf.id2idx('KL001')
         
@@ -173,12 +189,10 @@ class StaticObstacleCREnv(gym.Env):
                         bs.traf.delete(ac_idx)
                     self.impossible_route_counter += 1
                     continue
-                    
                 else:
                     raise  
 
         observation = self._get_obs()
-
         info = self._get_info()
 
         if self.render_mode == "human":
@@ -199,15 +213,86 @@ class StaticObstacleCREnv(gym.Env):
                 observation = self._get_obs()
                 info = self._get_info()
                 self.total_reward += reward
+<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
                 return observation, reward, done, truncated, info
+=======
+                return observation, reward, done, terminated, info
+>>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
 
         observation = self._get_obs()
         reward, done, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
+<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
         return observation, reward, done, truncated, info
     
+=======
+        return observation, reward, done, terminated, info
+
+    def _generate_sector(self):
+        R = np.sqrt(SECTOR_AREA_RANGE[1] / np.pi)
+        p = [fn.random_point_on_circle(R) for _ in range(3)] # 3 random points to start building the polygon
+        p = fn.sort_points_clockwise(p)
+        p_area = fn.polygon_area(p)
+        
+        while p_area < SECTOR_AREA_RANGE[0]:
+            p.append(fn.random_point_on_circle(R))
+            p = fn.sort_points_clockwise(p)
+            p_area = fn.polygon_area(p)
+        
+        self.poly_area = p_area
+
+        self.poly_points = np.array(p) # Polygon vertices are saved in terms of NM
+
+        p = [fn.nm_to_latlong(CENTER, point) for point in p] # Convert to lat/long coordinates
+        self.poly_points_lat_lon = np.array(p) # Polygon vertices are saved in lat/lon coordinates
+
+        points = [coord for point in p for coord in point] # Flatten the list of points
+        # red(f'Polygon points: {p}')
+        bs.tools.areafilter.defineArea('sector', 'POLY', points)
+
+    def _get_observation_polygon_edges(self, vertices, total_points=20):
+        """
+        Interpolates evenly along polygon edges to generate exactly `total_points` total points,
+        including original vertices.
+
+        Args:
+            vertices (np.ndarray): Polygon vertex coordinates, structures as [lat, lon].
+            total_points (int): Desired total number of points (vertices + interpolated).
+
+        Returns:
+            all_points (np.ndarray): All interpolated + original points, structures as [lat, lon].
+        """
+
+        num_edges = len(vertices)
+        points_to_interpolate = total_points - num_edges
+
+        # How many points per edge?
+        base_points = points_to_interpolate // num_edges
+        extra_points = points_to_interpolate % num_edges # remainder
+
+        all_points = []
+
+        for i in range(num_edges):
+            p1 = vertices[i]
+            p2 = vertices[(i + 1) % num_edges] # wrap around to first vertex
+
+            # Distribute remainder: first `extra_points` edges get one more
+            n_interp = base_points + (1 if i < extra_points else 0)
+
+            # Include original vertex
+            all_points.append(p1)
+
+            # Interpolate (exclude p2 so that next edge includes it)
+            for t in np.linspace(0, 1, n_interp + 2)[1:-1]:  # exclude 0 and 1
+                lat = p1[0] + t * (p2[0] - p1[0])
+                lon = p1[1] + t * (p2[1] - p1[1])
+                all_points.append([lat, lon])
+
+        return np.array(all_points)
+
+>>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
         
         self.other_aircraft_names = []
@@ -243,13 +328,13 @@ class StaticObstacleCREnv(gym.Env):
                     raise Exception("No aircraft can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
-        poly_area = np.random.randint(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1])
+        poly_area = np.random.randint(OBSTACLE_AREA_RANGE[0]*2, OBSTACLE_AREA_RANGE[1])
         R = np.sqrt(poly_area/ np.pi)
         p = [fn.random_point_on_circle(R) for _ in range(3)] # 3 random points to start building the polygon
         p = fn.sort_points_clockwise(p)
         p_area = fn.polygon_area(p)
         
-        while p_area < POLY_AREA_RANGE[0]:
+        while p_area < OBSTACLE_AREA_RANGE[0]:
             p.append(fn.random_point_on_circle(R))
             p = fn.sort_points_clockwise(p)
             p_area = fn.polygon_area(p)
@@ -372,10 +457,19 @@ class StaticObstacleCREnv(gym.Env):
                 wpt_lon_array = np.array([wpt_lon, wpt_lon])
                 ac_idx_alt_array = np.array([bs.traf.alt[ac_idx], bs.traf.alt[ac_idx]])
                 inside_temp = []
+
+                # check if waypoint is inside the sector. If not, a new waypoint should be generated
+                if i == 0:
+                    if bs.tools.areafilter.checkInside('sector', wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0]:
+                        inside_temp.append(False)
+                    else:
+                        inside_temp.append(True)
+
                 for j in range(NUM_OBSTACLES):
                     # shapetemp = bs.tools.areafilter.basic_shapes[self.obstacle_names[j]]
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0])
 
+                # if any inside_temp is True, then the waypoint is inside an obstacle (or outside the sector for the target waypoint) and a new waypoint should be generated
                 check_inside_var = any(x == True for x in inside_temp)                    
                 
                 if loop_counter > 1000:
@@ -487,10 +581,18 @@ class StaticObstacleCREnv(gym.Env):
         self.obstacle_centre_cos_bearing = []
         self.obstacle_centre_sin_bearing = []
         
-        self.ac_hdg = bs.traf.hdg[ac_idx]
+        # sector polygon edges observation
+        self.sector_points_distance = []
+        self.sector_points_cos_drift = []
+        self.sector_points_sin_drift = []        
         
         # other aircraft destination waypoints
         self.other_ac_destination_waypoint_distance = []
+
+        # destination waypoint observation
+        self.ac_hdg = bs.traf.hdg[ac_idx]
+        self.ac_tas = bs.traf.tas[ac_idx]
+        wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
 
         # intruders observation
         for i in range(NUM_INTRUDERS):
@@ -512,11 +614,6 @@ class StaticObstacleCREnv(gym.Env):
             self.intruder_x_difference_speed.append(x_dif)
             self.intruder_y_difference_speed.append(y_dif)
 
-
-        # destination waypoint observation
-        self.ac_hdg = bs.traf.hdg[ac_idx]
-        self.ac_tas = bs.traf.tas[ac_idx]
-        wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.wpt_lat[0], self.wpt_lon[0])
     
         self.destination_waypoint_distance.append(wpt_dis * NM2KM)
         self.wpt_qdr.append(wpt_qdr)
@@ -545,7 +642,29 @@ class StaticObstacleCREnv(gym.Env):
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
+        
+        # Get vertices and points along the edges of the sector
+        sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
 
+        sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], sector_points[:,0], sector_points[:,1])
+        
+        # Convert distances to kilometers
+        for sector_point in sector_points_dis:
+            self.sector_points_distance.append(sector_point * NM2KM)
+            
+        # Calculate drift for sector points
+        drift = self.ac_hdg - sector_points_qdr
+        drift_temp = []
+        for drift_angle in drift:
+            drift_angle = fn.bound_angle_positive_negative_180(drift_angle)
+            drift_temp.append(drift_angle)
+        drift = np.array(drift_temp)
+
+        # Calculate cosine and sine of the drift angles
+        for drift_from_point in drift:
+            self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
+            self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
+        
         observation = {
                 "intruder_distance": np.array(self.intruder_distance)/WAYPOINT_DISTANCE_MAX,
                 "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing),
@@ -556,10 +675,13 @@ class StaticObstacleCREnv(gym.Env):
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift),
                 # observations on obstacles
-                "restricted_area_radius": np.array(self.obstacle_radius)/(POLY_AREA_RANGE[0]),
+                "restricted_area_radius": np.array(self.obstacle_radius)/(OBSTACLE_AREA_RANGE[0]),
                 "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
+                "sector_points_distance": np.array(self.sector_points_distance)/WAYPOINT_DISTANCE_MAX,
+                "sector_points_cos_drift": np.array(self.sector_points_cos_drift),
+                "sector_points_sin_drift": np.array(self.sector_points_sin_drift),
             }
 
         return observation
@@ -571,6 +693,7 @@ class StaticObstacleCREnv(gym.Env):
             'total_reward': self.total_reward,
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
+            'exited_sector': self.exited_sector,
             'average_drift': self.average_drift.mean()
         }
 
@@ -579,13 +702,14 @@ class StaticObstacleCREnv(gym.Env):
         drift_reward = self._check_drift()
         intrusion_other_ac_reward = self._check_intrusion_other_ac()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
+        exit_reward, exit_terminate = self._check_sector_exit()
 
-        total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
+        total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward + exit_reward
 
         done = 0
         if self.wpt_reach[0] == 1:
             done = 1
-        elif intrusion_terminate:
+        elif intrusion_terminate or exit_terminate:
             done = 1
 
         return total_reward, done, False
@@ -630,6 +754,16 @@ class StaticObstacleCREnv(gym.Env):
                 self.crashed = 1
                 terminate = 1
         return reward, terminate
+    
+    def _check_sector_exit(self):
+        ac_idx = bs.traf.id2idx('KL001')
+        reward = 0
+        terminate = 0
+        if bs.tools.areafilter.checkInside('sector', np.array([bs.traf.lat[ac_idx]]), np.array([bs.traf.lon[ac_idx]]), np.array([bs.traf.alt[ac_idx]])) == False:
+            reward += SECTOR_EXIT_PENALTY
+            self.exited_sector = 1
+            terminate = 1
+        return reward, terminate
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING
@@ -659,6 +793,20 @@ class StaticObstacleCREnv(gym.Env):
         canvas.fill((135,206,235))
 
         px_per_km = self.window_width/MAX_DISTANCE
+
+        # Draw the sector polygon
+        airspace_color = (0, 255, 0)    
+        points = []
+        for coord in self.poly_points_lat_lon:
+            lat_ref = coord[0]
+            lon_ref = coord[1]
+            qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], lat_ref, lon_ref)
+            dis = dis*NM2KM
+            x_ref = ((np.sin(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_width
+            y_ref = ((-np.cos(np.deg2rad(qdr))*dis)/MAX_DISTANCE)*self.window_height
+
+            points.append((x_ref, y_ref))
+        pygame.draw.polygon(canvas, airspace_color, points, width=2)
 
         # draw ownship
         ac_idx = bs.traf.id2idx('KL001')
@@ -724,7 +872,10 @@ class StaticObstacleCREnv(gym.Env):
 
             int_qdr, int_dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
 
+<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
             # determine color
+=======
+>>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
             # determine if intruder is within the minimum separation distance
             _, int_dis_ownship = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
             
@@ -773,7 +924,6 @@ class StaticObstacleCREnv(gym.Env):
             circle_x = ((np.sin(np.deg2rad(qdr)) * dis * NM2KM)/MAX_DISTANCE)*self.window_width
             circle_y = (-(np.cos(np.deg2rad(qdr)) * dis * NM2KM)/MAX_DISTANCE)*self.window_width
 
-
             if reach:
                 if hide_other_target_waypoints:
                     color = (135,206,235)
@@ -817,4 +967,8 @@ class StaticObstacleCREnv(gym.Env):
             pygame.time.wait(100)
 
     def close(self):
+<<<<<<< HEAD:bluesky_gym/envs/static_obstacle_cr_env.py
         bs.stack.stack('quit')
+=======
+        bs.stack.stack("quit")
+>>>>>>> static_obstacle_sector_cr:bluesky_gym/envs/static_obstacle_sector_cr_env.py
