@@ -18,7 +18,7 @@ from bluesky_gym.utils import logger
 
 bluesky_gym.register_envs()
 
-env_name = 'CentralisedStaticObstacleEnv-v0'
+env_name = 'CentralisedStaticObstacleSectorCREnv-v0'
 algorithm = SAC
 
 # Initialize logger
