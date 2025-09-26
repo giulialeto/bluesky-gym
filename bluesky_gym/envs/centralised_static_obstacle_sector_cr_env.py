@@ -31,7 +31,6 @@ AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
-MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
@@ -111,8 +110,8 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
-        self.average_v_action = [] # Why is this called AVERAGE? isn't it just the action?
-        self.average_hdg_action = [] # Why is this called AVERAGE? isn't it just the action?
+        self.v_action = []
+        self.hdg_action = []
         self.ac_indices = np.arange(1, NUM_AC + 1)
         self.exited_sector = 0
 
@@ -124,8 +123,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        # import debug
-        # debug.blue("Environment reset")
         bs.traf.reset()
         self.counter = 0
 
@@ -181,7 +178,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 return observation, reward, done, truncated, info
 
         observation = self._get_obs()
-        # reward, done, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
@@ -359,10 +355,7 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             loop_counter = 0
             while check_inside_var:
                 loop_counter += 1
-                # if i == 0:
-                #     wpt_dis_init = np.random.randint(100, 170)
-                # else:
-                #     wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
+
                 wpt_dis_init = np.random.randint(100, 170)
                 wpt_hdg_init = np.random.randint(0, 360)
                 wpt_lat, wpt_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], wpt_dis_init, wpt_hdg_init)
@@ -472,77 +465,40 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         self.sector_points_cos_drift = []
         self.sector_points_sin_drift = []        
 
-        # self.ac_hdg = bs.traf.hdg[ac_idx]
-        
-        # other aircraft destination waypoints
-        # self.other_ac_destination_waypoint_distance = []
-        # import debug
-        # intruders observation
         for i in range(NUM_AC):
 
             intruders_lat = np.delete(bs.traf.lat, i)
             intruders_lon = np.delete(bs.traf.lon, i)
-            # debug.red(f'intruders lat: {intruders_lat}')
-            # debug.red(f'intruders lon: {intruders_lon}')
             int_qdr, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[i], bs.traf.lon[i], intruders_lat, intruders_lon)
-            # debug.green(f'int_qdr: {int_qdr}')
-            # debug.green(f'int_dis: {int_dis}')
             self.intruder_distance.append(int_dis * NM2KM)
-            # debug.cyan(f'intruder_distance: {self.intruder_distance}')
             bearing = bs.traf.hdg[i] - int_qdr
             for bearing_idx in range(len(bearing)):
                 bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
 
-            # debug.yellow(f'bearing: {bearing}')
             self.intruder_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.intruder_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
-            # debug.magenta(f'intruder_cos_bearing: {self.intruder_cos_bearing}, shape: {np.array(self.intruder_cos_bearing).shape}')
-            # debug.magenta(f'intruder_sin_bearing: {self.intruder_sin_bearing}')
-
             intruders_heading = np.delete(bs.traf.hdg, i)
             intruders_speed = np.delete(bs.traf.gs, i)
-            # debug.magenta(f'intruders_heading: {intruders_heading}')
-            # debug.magenta(f'intruders_speed: {intruders_speed}')
-            # debug.yellow(f"bs.traf.hdg[i]: {bs.traf.hdg[i]}")
             heading_difference = bs.traf.hdg[i] - intruders_heading
-            # debug.blue(f'heading_difference: {heading_difference}')
             x_dif = - np.cos(np.deg2rad(heading_difference)) * intruders_speed
             y_dif = bs.traf.gs[i] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
-            # debug.gray(f'x_dif: {x_dif}')
-            # debug.gray(f'y_dif: {y_dif}')
             self.intruder_x_difference_speed.append(x_dif)
             self.intruder_y_difference_speed.append(y_dif)
-            # debug.orange(f'intruder_x_difference_speed: {self.intruder_x_difference_speed}')
-            # debug.black(f'intruder_y_difference_speed: {self.intruder_y_difference_speed}')
 
         # destination waypoint observation
         wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, self.wpt_lat, self.wpt_lon)
-        # debug.red(f'wpt_qdr: {wpt_qdr}')
-        # debug.red(f'wpt_dis: {wpt_dis}')
     
         self.destination_waypoint_distance.append(wpt_dis * NM2KM)
         self.wpt_qdr.append(wpt_qdr)
-        # debug.blue(f'destination_waypoint_distance: {self.destination_waypoint_distance}, shape: {np.array(self.destination_waypoint_distance).shape}')
-        # debug.blue(f'wpt_qdr: {self.wpt_qdr}, shape: {np.array(self.wpt_qdr).shape}')
 
         drift = bs.traf.hdg - wpt_qdr
         for drift_idx in range(len(drift)):
             drift[drift_idx] = fn.bound_angle_positive_negative_180(drift[drift_idx])
-        # drift = fn.bound_angle_positive_negative_180(drift)
-        # debug.green(f'drift: {drift}, shape: {np.array(drift).shape}')
 
         self.destination_waypoint_drift.append(drift)
         self.destination_waypoint_cos_drift.append(np.cos(np.deg2rad(drift)))
         self.destination_waypoint_sin_drift.append(np.sin(np.deg2rad(drift)))
-        # debug.cyan(f'destination_waypoint_cos_drift: {self.destination_waypoint_cos_drift}, shape: {np.array(self.destination_waypoint_cos_drift).shape}')
-        # debug.cyan(f'destination_waypoint_sin_drift: {self.destination_waypoint_sin_drift}, shape: {np.array(self.destination_waypoint_sin_drift).shape}')
-
-        # other aircraft destination waypoints
-        # for i in range(NUM_INTRUDERS):
-        #     other_ac_idx = i+1
-        #     wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx], self.wpt_lat[other_ac_idx], self.wpt_lon[other_ac_idx])
-        #     self.other_ac_destination_waypoint_distance.append(wpt_dis * NM2KM)
 
         # obstacles observations
         for obs_idx in range(NUM_OBSTACLES):
@@ -550,51 +506,26 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             obs_centre_dis = obs_centre_dis * NM2KM #KM        
 
             bearing = bs.traf.hdg - obs_centre_qdr
-            # bearing = fn.bound_angle_positive_negative_180(bearing)
             for bearing_idx in range(len(bearing)):
                 bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
 
             self.obstacle_centre_distance.append(obs_centre_dis)
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
-        # import debug
-        # debug.yellow(f'obstacle_centre_distance: {self.obstacle_centre_distance}, shape: {np.array(self.obstacle_centre_distance).shape}')
-        # debug.yellow(f'obstacle_centre_cos_bearing: {self.obstacle_centre_cos_bearing}, shape: {np.array(self.obstacle_centre_cos_bearing).shape}')
-        # debug.yellow(f'obstacle_centre_sin_bearing: {self.obstacle_centre_sin_bearing}, shape: {np.array(self.obstacle_centre_sin_bearing).shape}')
 
         # Get vertices and points along the edges of the sector
         sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
-        # import debug
-        # debug.orange(f'sector_points: {sector_points}, shape: {sector_points.shape}, type: {type(sector_points)}')
-        # debug.red(f'sector_points[:, 0]: {sector_points[:,0]}, shape: {sector_points[:,0].shape}, type: {type(sector_points[:,0])}')
-        # debug.red(f'sector_points[:, 1]: {sector_points[:,1]}, shape: {sector_points[:,1].shape}, type: {type(sector_points[:,1])}')
+
         # Calculate distance and bearing from each ownship to each of the sector points
         for point_index in range(len(sector_points)):
-            # print(f'point_index: {point_index}')
             sector_points_qdr, sector_points_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, sector_points[point_index,0], sector_points[point_index,1])
-            # debug.red(f'sector_points_qdr: {sector_points_qdr}, shape: {sector_points_qdr.shape}, type: {type(sector_points_qdr)}')
-            # debug.red(f'sector_points_dis: {sector_points_dis}, shape: {sector_points_dis.shape}, type: {type(sector_points_dis)}')
-            # Convert distances to kilometers
-            #for sector_point in sector_points_dis:
             self.sector_points_distance.append(sector_points_dis * NM2KM)
 
             drift = bs.traf.hdg - sector_points_qdr
-            # debug.green(f'drift before bounding: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
-            # bearing = fn.bound_angle_positive_negative_180(bearing)
             for drift_idx in range(len(drift)):
                 drift[drift_idx] = fn.bound_angle_positive_negative_180(drift[drift_idx])
-            # debug.magenta(f'drift after bounding: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
             self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift)))
             self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift)))
-        
-            # debug.blue(f'sector_points_distance: {self.sector_points_distance}, shape: {np.array(self.sector_points_distance).shape}, type: {type(self.sector_points_distance)}')
-            # debug.light_blue(f'sector_points_cos_drift: {self.sector_points_cos_drift}, shape: {np.array(self.sector_points_cos_drift).shape}, type: {type(self.sector_points_cos_drift)}')
-            # debug.light_green(f'sector_points_sin_drift: {self.sector_points_sin_drift}, shape: {np.array(self.sector_points_sin_drift).shape}, type: {type(self.sector_points_sin_drift)}')
-        
-        # Calculate cosine and sine of the drift angles
-        # for drift_from_point in drift:
-        #     self.sector_points_cos_drift.append(np.cos(np.deg2rad(drift_from_point)))
-        #     self.sector_points_sin_drift.append(np.sin(np.deg2rad(drift_from_point)))
 
         observation = {
                 "intruder_distance": np.array(self.intruder_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
@@ -616,10 +547,9 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 "sector_points_sin_drift": np.array(self.sector_points_sin_drift).reshape(-1)
 
             }
-        # import debug
+
         # for key, value in observation.items():
         #     print(f"{key}: {value.shape}")
-        # debug.orange(f'observation: {observation}, shape: {np.array(observation).shape}')
 
         return observation
     
@@ -632,17 +562,14 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             'crashed': self.crashed,
             'exited_sector': self.exited_sector,
             'average_drift': self.average_drift.mean(),
-            'average_vinput': np.mean(self.average_v_action),
-            'average_hdginput': np.mean(self.average_hdg_action)
+            'average_vinput': np.mean(self.v_action),
+            'average_hdginput': np.mean(self.hdg_action)
 
         }
 
     def _get_reward(self):
-        # import debug
         reach_reward = self._check_waypoint()
-        # debug.black(f'reach_reward: {reach_reward}, shape: {np.array(reach_reward).shape}, type: {type(reach_reward)}')
         drift_reward = self._check_drift()
-        # debug.gray(f'drift_reward: {drift_reward}, shape: {np.array(drift_reward).shape}, type: {type(drift_reward)}')
         intrusion_other_ac_reward = self._check_intrusion_other_ac()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
         exit_reward, exit_terminate = self._check_sector_exit()
@@ -660,10 +587,7 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
     def _check_waypoint(self):
         reward = 0
         index = 0
-        # import debug
-        # debug.red(f'destination_waypoint_distance: {np.array(self.destination_waypoint_distance).reshape(-1)}, shape: {np.array(self.destination_waypoint_distance).shape}, type: {type(self.destination_waypoint_distance)}')
         for distance in np.array(self.destination_waypoint_distance).reshape(-1):
-            # debug.green(f'Checking waypoint {index+1} with distance {distance}')
             if distance < DISTANCE_MARGIN and self.wpt_reach[index] != 1:
                 self.waypoint_reached = 1
                 self.wpt_reach[index] = 1
@@ -672,22 +596,12 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
             else:
                 reward += 0
                 index += 1
-        
-        # for other_ac_wpt_reach_idx in range(len(self.wpt_reach)-1):
-        #     if self.other_ac_destination_waypoint_distance[other_ac_wpt_reach_idx] < DISTANCE_MARGIN and self.wpt_reach[other_ac_wpt_reach_idx+1] != 1:
-        #         self.wpt_reach[other_ac_wpt_reach_idx+1] = 1
 
         return reward
 
     def _check_drift(self):
-
-        # import debug
-        # debug.yellow(f'destination_waypoint_drift: {self.destination_waypoint_drift}, shape: {np.array(self.destination_waypoint_drift).shape}, type: {type(self.destination_waypoint_drift)}')
         drift = abs(np.deg2rad(self.destination_waypoint_drift))
-        # debug.orange(f'drift: {drift}, shape: {np.array(drift).shape}, type: {type(drift)}')
         self.average_drift = np.append(self.average_drift, drift)
-        # debug.pink(f'average_drift: {self.average_drift}, shape: {self.average_drift.shape}, type: {type(self.average_drift)}')
-        # debug.blue(f'drift * DRIFT_PENALTY: {drift * DRIFT_PENALTY}, shape: {np.array(drift * DRIFT_PENALTY).shape}, type: {type(drift * DRIFT_PENALTY)}')
         return np.sum(drift * DRIFT_PENALTY)
     
     def _check_intrusion_other_ac(self):
@@ -696,10 +610,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         _, dist = bs.tools.geo.kwikqdrdist(bs.traf.lat[I], bs.traf.lon[I], bs.traf.lat[J], bs.traf.lon[J])
 
         reward = AC_INTRUSION_PENALTY * np.count_nonzero(dist < INTRUSION_DISTANCE)                
-            # int_idx = i+1
-            # _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
-            # if int_dis < INTRUSION_DISTANCE:
-            #     reward += AC_INTRUSION_PENALTY
         return reward
 
     def _check_intrusion(self):
@@ -718,52 +628,31 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         reward = 0
         terminate = 0
         ac_inside = bs.tools.areafilter.checkInside('sector', bs.traf.lat, bs.traf.lon, bs.traf.alt)
-        # import debug
-        # debug.purple(f'ac_inside sector: {ac_inside}, shape: {np.array(ac_inside).shape}, type: {type(ac_inside)}')
         if not np.all(ac_inside): # if any aircraft is outside the sector
             n_violations = NUM_AC - np.count_nonzero(ac_inside)
             reward += SECTOR_EXIT_PENALTY * n_violations
             self.exited_sector = 1
             terminate = 1
-        # debug.pink(f'exited_sector: {self.exited_sector}, reward: {reward}, terminate: {terminate}')
         return reward, terminate
 
 
     def _get_action(self,action):
-        # dh = action[0] * D_HEADING
-        # dv = action[1] * D_SPEED
-        # heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('AC1')] + dh)
-        # speed_new = (bs.traf.tas[bs.traf.id2idx('AC1')] + dv) * MpS2Kt
-
-        # bs.stack.stack(f"HDG {'AC1'} {heading_new}")
-        # bs.stack.stack(f"SPD {'AC1'} {speed_new}")
-
-
         for i in range(len(self.ac_indices)): # TODO: change to controled. now is but might be wrong..
             action_index = i
-            # if not self.wpt_reach:
-            # dh = action[action_index] * D_HEADING
-            # else:
-            #     dh = -self.drift
-            # import debug
-            # debug.red(action_index*2)
-            # debug.green(action_index*2+1)
 
             dv = action[action_index*2+1] * D_SPEED
             dh = action[action_index*2] * D_HEADING
-            self.average_v_action.append(dv)
-            self.average_hdg_action.append(dh)
+            self.v_action.append(dv)
+            self.hdg_action.append(dh)
 
-            ind_ac = self.ac_indices[i] # this is to map the controll-ee to the instantaneous action space (since we change ac)
+            ind_ac = self.ac_indices[i] 
 
             heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx(f'AC{ind_ac}')] + dh)
             speed_new = (bs.traf.cas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
             # speed_new = speed_new if speed_new>0 else 0
             
-            # if not baseline_test:
             bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
-            # bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
-            bs.stack.stack(f"SPD AC{ind_ac} {speed_new/MACH_CRUISE}")
+            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
 
     def _render_frame(self):
         # options for rendering
@@ -809,12 +698,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
 
             qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[i], bs.traf.lon[i])
 
-            # determine color
-            # if dis < INTRUSION_DISTANCE:
-            #     color = (220,20,60)
-            # else: 
-            #     color = (80,80,80)
-            # color = (235, 52, 52)#(220,20,60)
             color = (80,80,80)
             color_circle = (80,80,80)
 
@@ -860,7 +743,6 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 radius = (INTRUSION_DISTANCE*NM2KM/MAX_DISTANCE)*self.window_width,
                 width = 2
             )
-
 
         # draw obstacles
         for vertices in self.obstacle_vertices:

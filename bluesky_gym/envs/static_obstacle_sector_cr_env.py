@@ -31,7 +31,6 @@ OTHER_AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
-MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
@@ -760,8 +759,7 @@ class StaticObstacleSectorCREnv(gym.Env):
         speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
 
         bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        # bs.stack.stack(f"SPD {'KL001'} {speed_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new/MACH_CRUISE}")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
 
     def _render_frame(self):
         # options for rendering
@@ -802,14 +800,6 @@ class StaticObstacleSectorCREnv(gym.Env):
         ac_length = 8
         heading_end_x = ((np.sin(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
         heading_end_y = ((np.cos(np.deg2rad(self.ac_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
-        # print(self.window_width/2, self.window_height/2)
-        # pygame.draw.line(canvas,
-        #     (0,0,0),
-        #     (self.window_width/2-heading_end_x/2,self.window_height/2+heading_end_y/2),
-        #     ((self.window_width/2)+heading_end_x/2
-        #      ,(self.window_height/2)-heading_end_y/2),
-        #     width = 4
-        # )
 
         qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])
         dis = dis*NM2KM

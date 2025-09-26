@@ -26,7 +26,6 @@ OBSTACLE_DISTANCE_MAX = 150 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
-MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
@@ -221,7 +220,7 @@ class StaticObstacleSectorEnv(gym.Env):
             p1 = vertices[i]
             p2 = vertices[(i + 1) % num_edges] # wrap around to first vertex
 
-            # Distribute remainder: first `extra_points` edges get one more
+            # Distribute remainder, first `extra_points` edges get one more
             n_interp = base_points + (1 if i < extra_points else 0)
 
             # Include original vertex
@@ -357,11 +356,10 @@ class StaticObstacleSectorEnv(gym.Env):
             wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
             wpt_hdg_init = np.random.randint(0, 360)
             wpt_lat, wpt_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], wpt_dis_init, wpt_hdg_init)
-            # green(f'Generated waypoint at lat: {wpt_lat}, lon: {wpt_lon}')
             inside_temp = []
             # if the waypoint is outside the sector, then it is a invalid waypoint, triggering the loop to generate a new one
 
-            # magenta(f'Checking if waypoint is inside sector: {bs.tools.areafilter.checkInside("sector", np.array([wpt_lat]), np.array([wpt_lon]), np.array([bs.traf.alt[ac_idx]]))[0]}')
+            # print(f'Checking if waypoint is inside sector: {bs.tools.areafilter.checkInside("sector", np.array([wpt_lat]), np.array([wpt_lon]), np.array([bs.traf.alt[ac_idx]]))[0]}')
             if bs.tools.areafilter.checkInside('sector', np.array([wpt_lat]), np.array([wpt_lon]), np.array([bs.traf.alt[ac_idx]]))[0]:
                 inside_temp.append(False)
             else:
@@ -545,8 +543,7 @@ class StaticObstacleSectorEnv(gym.Env):
         speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
 
         bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        # bs.stack.stack(f"SPD {'KL001'} {speed_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new/MACH_CRUISE}")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
@@ -565,10 +562,6 @@ class StaticObstacleSectorEnv(gym.Env):
 
         px_per_km = self.window_width/MAX_DISTANCE
         ac_idx = bs.traf.id2idx('KL001')
-        # # Draw the sector polygon test 1
-        # airspace_color = (0, 0, 255)
-        # coords = [((self.window_width/2)+point[1]*NM2KM*px_per_km, (self.window_height/2)-point[0]*NM2KM*px_per_km) for point in self.poly_points]
-        # pygame.draw.polygon(canvas, airspace_color, coords, width=2)
 
         # Draw the sector polygon
         airspace_color = (0, 255, 0)    

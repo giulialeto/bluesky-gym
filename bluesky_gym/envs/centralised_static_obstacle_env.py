@@ -30,7 +30,6 @@ AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
-MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
@@ -98,10 +97,9 @@ class CentralisedStaticObstacleEnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
-        self.average_v_action = [] # Why is this called AVERAGE? isn't it just the action?
-        self.average_hdg_action = [] # Why is this called AVERAGE? isn't it just the action?
+        self.v_action = []
+        self.hdg_action = []
         self.ac_indices = np.arange(1, NUM_AC + 1)
-
 
         self.obstacle_names = []
 
@@ -313,10 +311,6 @@ class CentralisedStaticObstacleEnv(gym.Env):
             loop_counter = 0
             while check_inside_var:
                 loop_counter += 1
-                # if i == 0:
-                #     wpt_dis_init = np.random.randint(100, 170)
-                # else:
-                #     wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
                 wpt_dis_init = np.random.randint(100, 170)
                 wpt_hdg_init = np.random.randint(0, 360)
                 wpt_lat, wpt_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], wpt_dis_init, wpt_hdg_init)
@@ -327,7 +321,6 @@ class CentralisedStaticObstacleEnv(gym.Env):
                 ac_idx_alt_array = np.array([ALTITUDE, ALTITUDE])
                 inside_temp = []
                 for j in range(NUM_OBSTACLES):
-                    # shapetemp = bs.tools.areafilter.basic_shapes[self.obstacle_names[j]]
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0])
 
                 check_inside_var = any(x == True for x in inside_temp)                    
@@ -417,13 +410,12 @@ class CentralisedStaticObstacleEnv(gym.Env):
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
             'average_drift': self.average_drift.mean(),
-            'average_vinput': np.mean(self.average_v_action),
-            'average_hdginput': np.mean(self.average_hdg_action)
+            'average_vinput': np.mean(self.v_action),
+            'average_hdginput': np.mean(self.hdg_action)
 
         }
 
     def _get_reward(self):
-        # import debug
         reach_reward = self._check_waypoint()
         drift_reward = self._check_drift()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
@@ -453,7 +445,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
         return reward
 
     def _check_drift(self):
-        for i in range(len(self.destination_waypoint_drift)): # TODO: change to controled. now is but might be wrong..
+        for i in range(len(self.destination_waypoint_drift)):
             if self.wpt_reach[i] != 1:
                 drift = abs(np.deg2rad(self.destination_waypoint_drift[i]))
             else:
@@ -474,23 +466,14 @@ class CentralisedStaticObstacleEnv(gym.Env):
         return reward, terminate
 
     def _get_action(self,action):
-        # dh = action[0] * D_HEADING
-        # dv = action[1] * D_SPEED
-        # heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('AC1')] + dh)
-        # speed_new = (bs.traf.tas[bs.traf.id2idx('AC1')] + dv) * MpS2Kt
-
-        # bs.stack.stack(f"HDG {'AC1'} {heading_new}")
-        # bs.stack.stack(f"SPD {'AC1'} {speed_new}")
-
-
-        for i in range(len(self.ac_indices)): # TODO: change to controled. now is but might be wrong..
+        for i in range(len(self.ac_indices)):
             action_index = i
 
             # if self.wpt_reach[i] != 1: # only change the heading and speed if the waypoint has not been reached yet
             dv = action[action_index*2+1] * D_SPEED
             dh = action[action_index*2] * D_HEADING
-            self.average_v_action.append(dv)
-            self.average_hdg_action.append(dh)
+            self.v_action.append(dv)
+            self.hdg_action.append(dh)
 
             ind_ac = self.ac_indices[i] # this is to map the controll-ee to the instantaneous action space (since we change ac)
 
@@ -498,10 +481,8 @@ class CentralisedStaticObstacleEnv(gym.Env):
             speed_new = (bs.traf.cas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
             # speed_new = speed_new if speed_new>0 else 0
         
-            # if not baseline_test:
             bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
-            # bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
-            bs.stack.stack(f"SPD AC{ind_ac} {speed_new/MACH_CRUISE}")
+            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
 
     def _render_frame(self):
         # options for rendering
@@ -523,11 +504,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
 
         px_per_km = self.window_width/MAX_DISTANCE
 
-        # draw ownship
-
-
-
-        # draw intruders
+        # draw ownships
         ac_length = 3
 
         for i in range(NUM_AC):
@@ -537,12 +514,6 @@ class CentralisedStaticObstacleEnv(gym.Env):
 
             qdr, dis = bs.tools.geo.kwikqdrdist(screen_coords[0], screen_coords[1], bs.traf.lat[i], bs.traf.lon[i])
 
-            # determine color
-            # if dis < INTRUSION_DISTANCE:
-            #     color = (220,20,60)
-            # else: 
-            #     color = (80,80,80)
-            # color = (235, 52, 52)#(220,20,60)
             color = (80,80,80)
             color_circle = (80,80,80)
 

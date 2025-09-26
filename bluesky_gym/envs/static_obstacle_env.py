@@ -25,7 +25,6 @@ OBSTACLE_DISTANCE_MAX = 150 # KM
 
 D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
-MACH_CRUISE = 0.8 # assuming target mach number for cruise
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE = 350 # In FL
@@ -350,7 +349,9 @@ class StaticObstacleEnv(gym.Env):
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
             }
-
+        # import pickle
+        # with open(f'observation_test.pkl', 'wb') as f:
+        #     pickle.dump(observation, f)
         return observation
     
     def _get_info(self):
@@ -412,10 +413,6 @@ class StaticObstacleEnv(gym.Env):
         dv = action[1] * D_SPEED
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
         speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
-        ## Technically this should be 
-        # MACH_CRUISE = 0.8 # assuming target mach number for cruise
-        # bs.stack.stack(f"SPD {'KL001'} {speed_new/MACH_CRUISE}") # CAS(knots)/MACH
-        ## Not updated to retain v0 of the environment (for now)
 
         bs.stack.stack(f"HDG {'KL001'} {heading_new}")
         bs.stack.stack(f"SPD {'KL001'} {speed_new}")
