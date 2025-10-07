@@ -8,6 +8,7 @@ dependencies = [
     "stable-baselines3",
     "numpy",
     "bluesky-simulator>=1.0.7",
+    "shapely"
 ]
 
 authors = [
