@@ -16,7 +16,7 @@ def register_envs():
     )
 
     register(
-        id="HorizontalCREnv-v0",
+        id="HorizontalCREnv-v1",
         entry_point="bluesky_gym.envs.horizontal_cr_env:HorizontalCREnv",
         max_episode_steps=300,
     )
@@ -46,7 +46,7 @@ def register_envs():
     )
 
     register(
-        id="StaticObstacleCREnv-v0",
+        id="StaticObstacleCREnv-v1",
         entry_point="bluesky_gym.envs.static_obstacle_cr_env:StaticObstacleCREnv",
         max_episode_steps=100,
     )
@@ -58,12 +58,12 @@ def register_envs():
     )
 
     register(
-        id="StaticObstacleSectorCREnv-v0",
+        id="StaticObstacleSectorCREnv-v1",
         entry_point="bluesky_gym.envs.static_obstacle_sector_cr_env:StaticObstacleSectorCREnv",
         max_episode_steps=100,
     )
     register(
-        id="CentralisedStaticObstacleCREnv-v0",
+        id="CentralisedStaticObstacleCREnv-v1",
         entry_point="bluesky_gym.envs.centralised_static_obstacle_cr_env:CentralisedStaticObstacleCREnv",
         max_episode_steps=100,
     )
@@ -75,7 +75,7 @@ def register_envs():
     )
     
     register(
-        id="CentralisedStaticObstacleSectorCREnv-v0",
+        id="CentralisedStaticObstacleSectorCREnv-v1",
         entry_point="bluesky_gym.envs.centralised_static_obstacle_sector_cr_env:CentralisedStaticObstacleSectorCREnv",
         max_episode_steps=100,
     )

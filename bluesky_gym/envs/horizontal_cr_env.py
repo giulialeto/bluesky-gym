@@ -176,8 +176,9 @@ class HorizontalCREnv(gym.Env):
             self.sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
             heading_difference = bs.traf.hdg[ac_idx] - bs.traf.hdg[int_idx]
-            x_dif = - np.cos(np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
-            y_dif = bs.traf.gs[ac_idx] - np.sin(np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
+            # relative velocity in x and y direction in reference to the ownship heading (x is in the direction of the ownship heading and y is perpendicular to it)
+            x_dif = - np.sin(-np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
+            y_dif = bs.traf.gs[ac_idx] - np.cos(-np.deg2rad(heading_difference)) * bs.traf.gs[int_idx]
 
             self.x_difference_speed.append(x_dif)
             self.y_difference_speed.append(y_dif)
