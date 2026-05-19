@@ -388,8 +388,10 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             intruders_heading = np.delete(bs.traf.hdg, i)
             intruders_speed = np.delete(bs.traf.gs, i)
             heading_difference = bs.traf.hdg[i] - intruders_heading
-            x_dif = - np.cos(np.deg2rad(heading_difference)) * intruders_speed
-            y_dif = bs.traf.gs[i] - np.sin(np.deg2rad(heading_difference)) * intruders_speed
+
+            # relative velocity in x and y direction in reference to the ownship heading (x is in the direction of the ownship heading and y is perpendicular to it)
+            x_dif = - np.sin(-np.deg2rad(heading_difference)) * intruders_speed
+            y_dif = bs.traf.gs[i] - np.cos(-np.deg2rad(heading_difference)) * intruders_speed
             self.intruder_x_difference_speed.append(x_dif)
             self.intruder_y_difference_speed.append(y_dif)
 
