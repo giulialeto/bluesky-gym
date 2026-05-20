@@ -62,9 +62,7 @@ The environments developed for the AI4REALNET project aim to extend the models o
 
 StaticObstacleCREnv-v1 | StaticObstacleSectorEnv-v0 | StaticObstacleSectorCREnv-v1
 :--------------------------------------------------:|:--------------------------------------------------:|:--------------------------------------------------:
-<img src="https://github.com/user-attachments/assets/d61f25a3-8bd8-4b71-9be4-f21b06c35a07" width=75% height=75%>             |<img src="https://github.com/user-attachments/assets/1fd213d1-f11b-40fb-8460-0e7ef52c754e" width=75% height=75%> |<img src="https://github.com/user-attachments/assets/6ae83579-78af-4cb7-8096-3a10af54a5c5" width=75% height=75%> 
-
-
+<img width="75%" height="75%" alt="StaticObstacleCREnv-v1" src="https://github.com/user-attachments/assets/aea7da87-75ad-4385-8f9e-cd3570abdc6c" />            |<img width="75%" height="75%" alt="StaticObstacleSectorEnv-v0" src="https://github.com/user-attachments/assets/6d69b38e-eb9b-43f7-bc95-9ccaf5196d5a" />   | <img width="75%" height="75%" alt="StaticObstacleSectorCREnv-v1" src="https://github.com/user-attachments/assets/5527ec4f-dee9-4cd8-924e-2b4d39d75d6d" />
 
 `"CentralisedStaticObstacleEnv-v0"`: Multiple aircraft controlled by a single agent avoid static obstacles in the environment to reach their destination waypoint. This environment builds a basic structure for the two following environments, which are interesting from the point of view of coordination. 
 
@@ -73,6 +71,10 @@ StaticObstacleCREnv-v1 | StaticObstacleSectorEnv-v0 | StaticObstacleSectorCREnv-
 `"CentralisedStaticObstacleSectorCREnv-v1"`: Multiple aircraft controlled by a single agent avoid each other as well as static obstacles in the environment to reach a destination waypoint, without exiting the sector. Research directions include testing whether coordination between aircraft increases performance in the task, rather than employing a single-agent model without coordination training to controll all the aircraft separately (StaticObstacleSectorCREnv-v0"), while also reducing coordination messages during tactical air traffic control.
 
 
+
 CentralisedStaticObstacleEnv-v0 | CentralisedStaticObstacleCREnv-v1 | CentralisedStaticObstacleSectorCREnv-v1
 :--------------------------------------------------:|:--------------------------------------------------:|:--------------------------------------------------:
-<img src="https://github.com/user-attachments/assets/d61f25a3-8bd8-4b71-9be4-f21b06c35a07" width=75% height=75%>             |<img src="https://github.com/user-attachments/assets/1fd213d1-f11b-40fb-8460-0e7ef52c754e" width=75% height=75%> |<img src="https://github.com/user-attachments/assets/6ae83579-78af-4cb7-8096-3a10af54a5c5" width=75% height=75%> 
+<img width="75%" height="75%" alt="CentralisedStaticObstacleEnv-v0" src="https://github.com/user-attachments/assets/21171dd5-2faa-4afa-9faa-6f20837a0f8a" /> |<img width="75%" height="75%" alt="CentralisedStaticObstacleCREnv-v1" src="https://github.com/user-attachments/assets/46ddfa55-f550-4b2d-96f2-d1494f12d1bd" /> | <img width="75%" height="75%" alt="CentralisedStaticObstacleSectorCREnv-v1" src="https://github.com/user-attachments/assets/91ac0358-d09a-4d8f-9cb7-347f14f5588a" />
+
+
+             
