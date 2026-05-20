@@ -6,7 +6,7 @@ dependencies = [
     "pygame",
     "gymnasium",
     "stable-baselines3",
-    "numpy",
+    "numpy==2.3.1",
     "bluesky-simulator>=1.0.7",
     "shapely"
 ]
