@@ -664,6 +664,11 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         self.clock.tick(self.metadata["render_fps"])
         # pygame.time.wait(10**5)
 
+        # Event-loop for MacOS to recognise window as active
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close()
+
         if self.counter == 1:
             pygame.time.wait(100)
 
