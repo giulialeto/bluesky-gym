@@ -194,19 +194,21 @@ class StaticObstacleCREnv(gym.Env):
             bs.sim.step()
             if self.render_mode == "human":
                 self._render_frame()
-            reward, done, truncated = self._get_reward()
+
+            # the current environment never issues a truncation signal.
+            reward, terminated, truncated = self._get_reward()
             if truncated:
                 observation = self._get_obs()
                 info = self._get_info()
                 self.total_reward += reward
-                return observation, reward, done, truncated, info
+                return observation, reward, terminated, truncated, info
 
         observation = self._get_obs()
-        reward, done, truncated = self._get_reward()
+        reward, terminated, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
-        return observation, reward, done, truncated, info
+        return observation, reward, terminated, truncated, info
     
     def _generate_other_aircraft(self, acid_actor = 'KL001', num_other_aircraft = NUM_INTRUDERS):
         
@@ -580,13 +582,13 @@ class StaticObstacleCREnv(gym.Env):
 
         total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
 
-        done = 0
+        terminated = 0
         if self.wpt_reach[0] == 1:
-            done = 1
+            terminated = 1
         elif intrusion_terminate:
-            done = 1
+            terminated = 1
 
-        return total_reward, done, False
+        return total_reward, terminated, False
     
     def _check_waypoint(self):
         reward = 0
