@@ -192,19 +192,18 @@ class StaticObstacleCREnv(gym.Env):
 
         for i in range(ACTION_FREQUENCY):
             bs.sim.step()
+
+            observation = self._get_obs()
             if self.render_mode == "human":
                 self._render_frame()
 
             # the current environment never issues a truncation signal.
             reward, terminated, truncated = self._get_reward()
-            if truncated:
-                observation = self._get_obs()
+            if terminated or truncated: # Environments terminates immediately after hitting the restricted area or reaching the waypoint
                 info = self._get_info()
                 self.total_reward += reward
                 return observation, reward, terminated, truncated, info
 
-        observation = self._get_obs()
-        reward, terminated, truncated = self._get_reward()
         self.total_reward += reward
         info = self._get_info()
 
@@ -556,7 +555,7 @@ class StaticObstacleCREnv(gym.Env):
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift),
                 # observations on obstacles
-                "restricted_area_radius": np.array(self.obstacle_radius)/(POLY_AREA_RANGE[0]),
+                "restricted_area_radius": np.array(self.obstacle_radius)/(POLY_AREA_RANGE[1]),
                 "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
@@ -571,7 +570,7 @@ class StaticObstacleCREnv(gym.Env):
             'total_reward': self.total_reward,
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
-            'average_drift': self.average_drift.mean()
+            'average_drift': self.average_drift.mean() # the average drift is calculated over every simulation time step, including ones at which no action is taken/reward assigned
         }
 
     def _get_reward(self):
@@ -594,7 +593,7 @@ class StaticObstacleCREnv(gym.Env):
         reward = 0
         if self.destination_waypoint_distance[0] < DISTANCE_MARGIN and self.wpt_reach[0] != 1:
             self.wpt_reach[0] = 1
-            self.waypoint_reached = 1
+            self.waypoint_reached = 1 # contains only the information of the target way point of the ownship, not the other aircraft
             reward += REACH_REWARD
         else:
             reward += 0
@@ -641,6 +640,14 @@ class StaticObstacleCREnv(gym.Env):
         bs.stack.stack(f"SPD {'KL001'} {speed_new}") # CAS(knots)
 
     def _render_frame(self):
+        '''Render frame uses pygame to render the environment. 
+        The ownship is represented by a red line, intruders are represented by gray lines, 
+        and obstacles are represented by black polygons. The target waypoint is represented 
+        by a circle.
+        To render the environment at the current time step, _get_obs() needs to be called 
+        first to get the current state of the environment.
+        '''
+
         # options for rendering
         hide_other_target_waypoints = True
 
