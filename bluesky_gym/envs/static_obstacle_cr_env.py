@@ -13,11 +13,12 @@ from gymnasium import spaces
 from shapely.geometry import Polygon
 
 DISTANCE_MARGIN = 5 # km
-REACH_REWARD = 1 # reach set waypoint
+REACH_REWARD = 5 # reach set waypoint
 
 DRIFT_PENALTY = -0.01
 AC_INTRUSION_PENALTY = -5
 RESTRICTED_AREA_INTRUSION_PENALTY = -5
+PROGRESS_REWARD_WEIGHT = 0.5
 
 WAYPOINT_DISTANCE_MIN = 180 # KM
 WAYPOINT_DISTANCE_MAX = 400 # KM
@@ -101,6 +102,8 @@ class StaticObstacleCREnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
+        self.last_reward_vector = np.zeros(2, dtype=np.float32)
+        self.previous_destination_waypoint_distance = None
 
         self.obstacle_names = []
 
@@ -118,6 +121,8 @@ class StaticObstacleCREnv(gym.Env):
         self.waypoint_reached = 0
         self.crashed = 0
         self.average_drift = np.array([])
+        self.last_reward_vector = np.zeros(2, dtype=np.float32)
+        self.previous_destination_waypoint_distance = None
         self.impossible_route_counter = 0
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
@@ -570,22 +575,45 @@ class StaticObstacleCREnv(gym.Env):
             'total_reward': self.total_reward,
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
-            'average_drift': self.average_drift.mean() # the average drift is calculated over every simulation time step, including ones at which no action is taken/reward assigned
+            'average_drift': self.average_drift.mean(), # the average drift is calculated over every simulation time step, including ones at which no action is taken/reward assigned
+            'reward_vector': self.last_reward_vector.copy(),
+            'reward_components': [
+                'reach_drift_progress_reward',
+                'intrusions_restrictions_reward'
+            ],
         }
 
     def _get_reward(self):
         reach_reward = self._check_waypoint()
-        drift_reward = self._check_drift()
-        intrusion_other_ac_reward = self._check_intrusion_other_ac()
+        drift_reward = self._check_drift() # drift reward is now replaced by progress reward
+        progress_reward = self._check_progress()
+        intrusion_other_ac_reward, intrusion_terminate_other_ac = self._check_intrusion_other_ac()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
-
-        total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
+        
+        # old reward
+        # total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
+        # new reward
+        total_reward = reach_reward + progress_reward + intrusion_other_ac_reward + intrusion_reward
 
         terminated = 0
         if self.wpt_reach[0] == 1:
             terminated = 1
         elif intrusion_terminate:
             terminated = 1
+            done = 1
+        elif intrusion_terminate_other_ac: # terminate if the ownship is too close to other aircraft (same logic as restricted area intrusion)
+            done = 1
+
+        # reward vector for DOL algorithm, first component is the reach, second component is the avoidance of intrusions and restricted areas
+        # last_reward_vector is added to the info dictionary in _get_info() function
+        # it is used only for DOL
+        self.last_reward_vector = np.array(
+            [
+                reach_reward + progress_reward,
+                intrusion_other_ac_reward + intrusion_reward
+            ],
+            dtype=np.float32,
+        )
 
         return total_reward, terminated, False
     
@@ -612,12 +640,16 @@ class StaticObstacleCREnv(gym.Env):
     def _check_intrusion_other_ac(self):
         ac_idx = bs.traf.id2idx('KL001')
         reward = 0
+        terminate = 0
         for i in range(NUM_INTRUDERS):
             int_idx = i+1
             _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
             if int_dis < INTRUSION_DISTANCE:
                 reward += AC_INTRUSION_PENALTY
-        return reward
+            if int_dis < INTRUSION_DISTANCE*0.1: # terminate if the ownship is too close to other aircraft (same logic as restricted area intrusion)
+                self.crashed = 1
+                terminate = 1
+        return reward, terminate
 
     def _check_intrusion(self):
         ac_idx = bs.traf.id2idx('KL001')
@@ -629,6 +661,15 @@ class StaticObstacleCREnv(gym.Env):
                 self.crashed = 1
                 terminate = 1
         return reward, terminate
+    
+    def _check_progress(self):
+        distance = self.destination_waypoint_distance[0]
+        if self.previous_destination_waypoint_distance is None:
+            self.previous_destination_waypoint_distance = distance
+            return 0
+        reward = (self.previous_destination_waypoint_distance - distance) * PROGRESS_REWARD_WEIGHT
+        self.previous_destination_waypoint_distance = distance
+        return reward
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING
