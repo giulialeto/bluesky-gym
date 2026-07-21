@@ -8,8 +8,17 @@ class CSVLoggerCallback(BaseCallback):
         os.makedirs(log_dir, exist_ok=True)
         self.log_dir = log_dir
         self.log_file = os.path.join(log_dir, file_name)
+
+        base, ext = os.path.splitext(file_name)
+        self.sb3_log_file = os.path.join(log_dir, f'{base}_SBlog{ext}')
+
         self.headers = ['timesteps', 'episodes']
         self.initialized = False
+
+        #Log SB3 metrics
+        self.sb3_initialized = False
+        self.sb3_keys = []
+
         self.episode_count = 0
 
     def _on_step(self) -> bool:
@@ -31,5 +40,21 @@ class CSVLoggerCallback(BaseCallback):
             with open(self.log_file, mode='a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(row)
+
+            # SB3 training metrics — only populated after an update has occurred
+            sb3_metrics = self.model.logger.name_to_value
+            if sb3_metrics:
+                if not self.sb3_initialized:
+                    self.sb3_keys = list(sb3_metrics.keys())
+                    sb3_headers = ['timesteps', 'episodes'] + self.sb3_keys
+                    with open(self.sb3_log_file, mode='w', newline='') as f:
+                        csv.writer(f).writerow(sb3_headers)
+                    self.sb3_initialized = True
+
+                sb3_values = [sb3_metrics.get(k, None) for k in self.sb3_keys]
+                sb3_row = [timesteps, self.episode_count] + sb3_values
+                with open(self.sb3_log_file, mode='a', newline='') as f:
+                    csv.writer(f).writerow(sb3_row)
+
 
         return True
