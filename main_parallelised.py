@@ -48,19 +48,22 @@ if __name__ == "__main__":
 
     # training and evaluation
     tic = datetime.datetime.now()
+
+    # define the environment with parallelized environments using SubprocVecEnv
     env = make_vec_env(env_name,
             n_envs=num_cpu,
             seed=0,
             vec_env_cls=SubprocVecEnv)
 
     save_path=(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/")
-
     save_callback = model_checkpoint_callback.SaveModelCallback(save_freq=50000, save_path=save_path, verbose=1)
 
+    # define the path and frequency for saving checkpoints of the model and its replay buffer
     checkpoint_dir = os.path.join(save_path, "checkpoint")
     model_path = os.path.join(checkpoint_dir, "model_latest.zip")
     buffer_path = os.path.join(checkpoint_dir, "model_latest_buffer.pkl")
 
+    # define the model (either anew or from a checkpoint)
     if os.path.exists(model_path) and resume_from_checkpoint:
         print(f"Resuming from checkpoint: {model_path}")
         model = algorithm.load(model_path, env=env)
