@@ -1,6 +1,9 @@
 import csv
 import os
 from stable_baselines3.common.callbacks import BaseCallback
+from collections import deque
+import numbers
+import numpy as np
 
 EXCLUDED_INFO_KEYS = ('episode', 'terminal_observation', 'TimeLimit.truncated')
 
@@ -11,7 +14,7 @@ class CSVLoggerCallback(BaseCallback):
     This logger supports parallelized environments. 
     """
 
-    def __init__(self, log_dir, file_name='training_log.csv', verbose=0):
+    def __init__(self, log_dir, file_name='training_log.csv', monitor_keys= None, verbose=0):
         super(CSVLoggerCallback, self).__init__(verbose)
         # check the directory exists, if not create it
         os.makedirs(log_dir, exist_ok=True)
@@ -24,6 +27,11 @@ class CSVLoggerCallback(BaseCallback):
         # Initialize the headers for the CSV file. The keys from the info dictionary are added later dynamically.
         self.headers = ['timesteps', 'episodes', 'env_idx']
         self.initialized = False
+
+        # get the keys to add to the SB3 log
+        self.monitor_keys = monitor_keys
+        # Rolling window of finished-episode infos, mirrors SB3's ep_info_buffer.
+        self.ep_info_window = deque(maxlen=100)
 
         #Log SB3 metrics
         self.sb3_initialized = False
@@ -54,6 +62,9 @@ class CSVLoggerCallback(BaseCallback):
                 with open(self.log_file, mode='a', newline='') as f:
                     csv.writer(f).writerow(row)
 
+                self.ep_info_window.append(info_dict)
+                self._record_rolling_means()
+
                 # SB3 training metrics — only populated after an update has occurred
                 sb3_metrics = self.model.logger.name_to_value
                 if sb3_metrics:
@@ -70,3 +81,13 @@ class CSVLoggerCallback(BaseCallback):
                         csv.writer(f).writerow(sb3_row)
 
         return True
+    
+    def _record_rolling_means(self):
+        """Record rolling means of episode infos to SB3's logger (verbose table / TensorBoard)."""
+        for key in self.info_keys:
+            if self.monitor_keys is not None and key not in self.monitor_keys:
+                continue
+            values = [ep_info[key] for ep_info in self.ep_info_window
+                      if isinstance(ep_info.get(key), numbers.Number)]
+            if values:
+                self.logger.record(f'rollout/{key}_mean', np.mean(values))
