@@ -12,3 +12,11 @@ debug.py
 de-bugging_obstacles/
 logs_backup/
 figures_results/
+main_parallelised_email.py
+main_test_against_parallelised.py
+main_email.py
+email_notification.py
+bluesky_gym/utils/email_callback.py
+scripts/common/results/SimPCS - Logs/
+sasha's MP/
+scripts/common/results/models_backup
