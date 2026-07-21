@@ -2,7 +2,6 @@ import numpy as np
 import pygame
 
 import bluesky as bs
-from bluesky_gym.envs.common.screen_dummy import ScreenDummy
 import bluesky_gym.envs.common.functions as fn
 import bluesky_gym.envs.common.deterministic_path_planning as path_plan
 from bluesky.tools.aero import kts
@@ -42,6 +41,8 @@ ACTION_FREQUENCY = 10
 NUM_OBSTACLES = 5 #np.random.randint(1,5)
 NUM_INTRUDERS = 5
 INTRUSION_DISTANCE = 5 # NM
+ENCOUNTER_THRESHOLD = 20 #NM
+MIN_OBSTACLE_DISTANCE_THRESHOLD = 20  # NM — obstacles closer than this count as relevant
 
 ## number of waypoints coincides with the number of destinations for each aircraft (actor and all other aircraft)
 NUM_WAYPOINTS = NUM_INTRUDERS + 1
@@ -92,15 +93,34 @@ class StaticObstacleCREnv(gym.Env):
         if bs.sim is None:
             bs.init(mode='sim', detached=True)
 
-        # initialize dummy screen and set correct sim speed
-        bs.scr = ScreenDummy()
         bs.stack.stack('DT 1;FF')
         
         # variables for logging
         self.total_reward = 0
         self.waypoint_reached = 0
         self.crashed = 0
+        self.intrusion_counter = 0
+        self.los_state = np.zeros(NUM_INTRUDERS, dtype=bool)  # tracks per-intruder intrusion state
+        self.total_intrusion_time = 0
         self.average_drift = np.array([])
+        self.reach_reward = 0
+        self.drift_reward = 0
+        self.intrusion_other_ac_reward = 0
+        self.intrusion_reward = 0
+        self.hdg_action = np.array([])
+        self.spd_action = np.array([])
+        self.hdg_action_saturated = 0
+        self.spd_action_saturated = 0
+        self.prev_hdg_action = None
+        self.prev_spd_action = None
+        self.hdg_action_delta = np.array([])
+        self.spd_action_delta = np.array([])
+        self.hdg_action_reversals = 0
+        self.spd_action_reversals = 0
+        self.cpa_per_intruder = np.full(NUM_INTRUDERS, np.inf)  # running minimum per intruder
+        self.min_obstacle_distance = np.full(NUM_OBSTACLES, np.inf)  # running minimum distance per obstacle
+        self.actual_path_length = 0.0
+        self.planned_path_length = 0.0
 
         self.obstacle_names = []
 
@@ -117,8 +137,29 @@ class StaticObstacleCREnv(gym.Env):
         self.total_reward = 0
         self.waypoint_reached = 0
         self.crashed = 0
+        self.intrusion_counter = 0
+        self.los_state = np.zeros(NUM_INTRUDERS, dtype=bool)  # tracks per-intruder intrusion state
+        self.total_intrusion_time = 0
         self.average_drift = np.array([])
         self.impossible_route_counter = 0
+        self.reach_reward = 0
+        self.drift_reward = 0
+        self.intrusion_other_ac_reward = 0
+        self.intrusion_reward = 0
+        self.hdg_action = np.array([])
+        self.spd_action = np.array([])
+        self.hdg_action_saturated = 0
+        self.spd_action_saturated = 0
+        self.prev_hdg_action = None
+        self.prev_spd_action = None
+        self.hdg_action_delta = np.array([])
+        self.spd_action_delta = np.array([])
+        self.hdg_action_reversals = 0
+        self.spd_action_reversals = 0
+        self.cpa_per_intruder = np.full(NUM_INTRUDERS, np.inf)  # running minimum per intruder
+        self.min_obstacle_distance = np.full(NUM_OBSTACLES, np.inf)  # running minimum distance per obstacle    
+        self.actual_path_length = 0.0
+        self.planned_path_length = 0.0
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
 
@@ -151,7 +192,28 @@ class StaticObstacleCREnv(gym.Env):
 
             try:
                 self._path_planning()
+
+                # compute reference path length for ownship using the same path planner
+                merged_obstacles_vertices = self._merge_overlapping_obstacles(self.obstacle_vertices)
+                planned_path_ownship = path_plan.det_path_planning(
+                    bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.alt[ac_idx],
+                    bs.traf.tas[ac_idx] / kts,
+                    self.wpt_lat[0], self.wpt_lon[0],
+                    merged_obstacles_vertices
+                )
+                # sum up the distance between consecutive waypoints in the planned path
+                self.planned_path_length = 0.0
+                path_points = [(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])] + planned_path_ownship
+                for j in range(len(path_points) - 1):
+                    _, seg_dis = bs.tools.geo.kwikqdrdist(
+                        path_points[j][0], path_points[j][1],
+                        path_points[j+1][0], path_points[j+1][1]
+                    )
+                    self.planned_path_length += seg_dis * NM2KM  # km
+
                 self.sample_entire_scenario = False  # Success
+
+
             except Exception as e:
                 if str(e) == "Impossible to find a route":
                     print("Impossible to find a route, resampling the scenario")
@@ -170,12 +232,19 @@ class StaticObstacleCREnv(gym.Env):
                     
                     for name in self.other_aircraft_names:
                         ac_idx = bs.traf.id2idx(name)
+                        if ac_idx < 0:
+                            raise RuntimeError(f"Cannot delete {name}: not found in bs.traf")
                         bs.traf.delete(ac_idx)
                     self.impossible_route_counter += 1
                     continue
                     
                 else:
                     raise  
+
+        assert len(bs.traf.lat) == NUM_INTRUDERS + 1, (
+            f"Expected {NUM_INTRUDERS+1} aircraft, found {len(bs.traf.lat)} "
+            f"(ids: {bs.traf.id})"
+        )
 
         observation = self._get_obs()
 
@@ -188,10 +257,20 @@ class StaticObstacleCREnv(gym.Env):
     
     def step(self, action):
         self.counter += 1
+        self.counter_sub_step = 0
         self._get_action(action)
 
         for i in range(ACTION_FREQUENCY):
+            self.counter_sub_step += 1
+            ac_idx = bs.traf.id2idx('KL001')
+            prev_lat, prev_lon = bs.traf.lat[ac_idx], bs.traf.lon[ac_idx]
+
             bs.sim.step()
+
+            ac_idx = bs.traf.id2idx('KL001')
+            _, dist = bs.tools.geo.kwikqdrdist(prev_lat, prev_lon, bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])
+            self.actual_path_length += dist * NM2KM  # km
+
 
             observation = self._get_obs()
             if self.render_mode == "human":
@@ -492,7 +571,7 @@ class StaticObstacleCREnv(gym.Env):
 
         # intruders observation
         for i in range(NUM_INTRUDERS):
-            int_idx = i+1
+            int_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             int_qdr, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
         
             self.intruder_distance.append(int_dis * NM2KM)
@@ -529,13 +608,19 @@ class StaticObstacleCREnv(gym.Env):
 
         # other aircraft destination waypoints
         for i in range(NUM_INTRUDERS):
-            other_ac_idx = i+1
+            other_ac_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             wpt_qdr, wpt_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[other_ac_idx], bs.traf.lon[other_ac_idx], self.wpt_lat[other_ac_idx], self.wpt_lon[other_ac_idx])
             self.other_ac_destination_waypoint_distance.append(wpt_dis * NM2KM)
 
         # obstacles observations
         for obs_idx in range(NUM_OBSTACLES):
             obs_centre_qdr, obs_centre_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat[obs_idx], self.obstacle_centre_lon[obs_idx])
+
+            # approximate clearance to obstacle boundary using obstacle radius
+            # change this when making the observations more accurate
+            obs_boundary_clearance = obs_centre_dis - self.obstacle_radius[obs_idx]
+            self.min_obstacle_distance[obs_idx] = min(self.min_obstacle_distance[obs_idx], obs_boundary_clearance)
+
             obs_centre_dis = obs_centre_dis * NM2KM #KM        
 
             bearing = self.ac_hdg - obs_centre_qdr
@@ -558,7 +643,7 @@ class StaticObstacleCREnv(gym.Env):
                 "restricted_area_radius": np.array(self.obstacle_radius)/(POLY_AREA_RANGE[1]),
                 "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
-                "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing),
+                "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing)                
             }
 
         return observation
@@ -570,7 +655,32 @@ class StaticObstacleCREnv(gym.Env):
             'total_reward': self.total_reward,
             'waypoint_reached': self.waypoint_reached,
             'crashed': self.crashed,
-            'average_drift': self.average_drift.mean() # the average drift is calculated over every simulation time step, including ones at which no action is taken/reward assigned
+            'average_drift': self.average_drift.mean() if len(self.average_drift) > 0 else None, # the average drift is calculated over every simulation time step, including ones at which no action is taken/reward assigned
+            'total_intrusion_time': self.total_intrusion_time,
+            'intrusion_counter': self.intrusion_counter,
+            'reach_reward': self.reach_reward,
+            'drift_reward': self.drift_reward,
+            'intrusion_other_ac_reward': self.intrusion_other_ac_reward,
+            'intrusion_reward': self.intrusion_reward,
+            'average_hdg_action': np.abs(self.hdg_action).mean() if len(self.hdg_action) > 0 else 0.0,
+            'average_spd_action': np.abs(self.spd_action).mean() if len(self.spd_action) > 0 else 0.0,
+            'hdg_action_saturated_rate': self.hdg_action_saturated / len(self.hdg_action) if len(self.hdg_action) > 0 else 0,
+            'spd_action_saturated_rate': self.spd_action_saturated / len(self.spd_action) if len(self.spd_action) > 0 else 0,
+            'average_hdg_action_delta': self.hdg_action_delta.mean() if len(self.hdg_action_delta) > 0 else 0.0,
+            'average_spd_action_delta': self.spd_action_delta.mean() if len(self.spd_action_delta) > 0 else 0.0,
+            # the reversal rate is calculated as the number of reversals divided by the number of actions minus 1, since a reversal can only occur after at least one action has been taken
+            'hdg_reversal_rate': self.hdg_action_reversals / (len(self.hdg_action)-1) if len(self.hdg_action) > 1 else 0.0, 
+            'spd_reversal_rate': self.spd_action_reversals / (len(self.spd_action)-1) if len(self.spd_action) > 1 else 0.0,
+            'min_cpa': self.cpa_per_intruder.min() if not np.all(np.isinf(self.cpa_per_intruder)) else None,
+            'num_encounters': int((self.cpa_per_intruder < ENCOUNTER_THRESHOLD).sum()),
+            'min_obstacle_distance': float(self.min_obstacle_distance.min()) if not np.all(np.isinf(self.min_obstacle_distance)) else None,
+            'num_obstacle_encounters': int((self.min_obstacle_distance < MIN_OBSTACLE_DISTANCE_THRESHOLD).sum()),
+            'extra_path_length': self.actual_path_length - self.planned_path_length if self.planned_path_length > 0 else None,
+            'path_length_ratio': self.actual_path_length / self.planned_path_length if self.planned_path_length > 0 else None,
+            'actual_path_length': self.actual_path_length,
+            'planned_path_length': self.planned_path_length,
+            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0 else None  # seconds
+
         }
 
     def _get_reward(self):
@@ -586,6 +696,13 @@ class StaticObstacleCREnv(gym.Env):
             terminated = 1
         elif intrusion_terminate:
             terminated = 1
+
+        # update logging variables only once per control step
+        if self.counter_sub_step == ACTION_FREQUENCY or terminated:
+            self.reach_reward += reach_reward
+            self.drift_reward += drift_reward
+            self.intrusion_other_ac_reward += intrusion_other_ac_reward
+            self.intrusion_reward += intrusion_reward
 
         return total_reward, terminated, False
     
@@ -613,10 +730,23 @@ class StaticObstacleCREnv(gym.Env):
         ac_idx = bs.traf.id2idx('KL001')
         reward = 0
         for i in range(NUM_INTRUDERS):
-            int_idx = i+1
+            int_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
-            if int_dis < INTRUSION_DISTANCE:
+
+            self.cpa_per_intruder[i] = min(self.cpa_per_intruder[i], int_dis)
+
+            currently_intruding = int_dis < INTRUSION_DISTANCE
+
+            if currently_intruding:
                 reward += AC_INTRUSION_PENALTY
+                self.total_intrusion_time += 1
+
+            # Update the intrusion counter only when the aircraft transitions from a non-intruding state to an intruding state
+            if currently_intruding and not self.los_state[i]:
+                self.intrusion_counter += 1
+
+            self.los_state[i] = currently_intruding
+
         return reward
 
     def _check_intrusion(self):
@@ -635,9 +765,49 @@ class StaticObstacleCREnv(gym.Env):
         dv = action[1] * D_SPEED
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
         speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        
+        heading_str = f"{heading_new:.6f}"
+        speed_str = f"{speed_new:.6f}"
 
-        bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}") # CAS(knots)
+        if "e" in heading_str.lower() or "e" in speed_str.lower():
+            print(f"[DEBUG] scientific notation slipped through: hdg={heading_str}, spd={speed_str}")
+
+        if not isinstance(heading_new, float) or not np.isfinite(heading_new):
+            print(f"[DEBUG] bad heading_new: {heading_new!r} (type={type(heading_new)})")
+
+        bs.stack.stack(f"HDG {'KL001'} {heading_new:.6f}")
+
+        if not isinstance(speed_new, float) or not np.isfinite(speed_new):
+            print(f"[DEBUG] bad speed_new: {speed_new!r} (type={type(speed_new)})")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new:.6f}")
+
+        # logger raw action magnitude
+        self.hdg_action = np.append(self.hdg_action, action[0])
+        self.spd_action = np.append(self.spd_action, action[1])
+
+        # logger change in target heading and speed 
+        if self.prev_hdg_action is not None:
+            self.hdg_action_delta = np.append(self.hdg_action_delta, abs(action[0] - self.prev_hdg_action))
+            self.spd_action_delta = np.append(self.spd_action_delta, abs(action[1] - self.prev_spd_action))
+
+            # count direction reversals — sign flip on non-negligible actions
+            # non-negligigle action is currently defined as larger than 0.05, corresponding to pm 2.25 degrees (0.05*D_HEADING) and pm 0.33 knots (0.05*D_SPEED). 
+            # This is a parameter that can be tuned.
+            
+            if np.sign(action[0]) != np.sign(self.prev_hdg_action) and abs(action[0]) > 0.05 and abs(self.prev_hdg_action) > 0.05:
+                self.hdg_action_reversals += 1
+            if np.sign(action[1]) != np.sign(self.prev_spd_action) and abs(action[1]) > 0.05 and abs(self.prev_spd_action) > 0.05:
+                self.spd_action_reversals += 1
+
+        self.prev_hdg_action = action[0]
+        self.prev_spd_action = action[1]
+
+        # logger for action saturation percentage
+        if abs(action[0]) >= 1.0:
+            self.hdg_action_saturated += 1
+        if abs(action[1]) >= 1.0:
+            self.spd_action_saturated += 1
+
 
     def _render_frame(self):
         '''Render frame uses pygame to render the environment. 
@@ -716,7 +886,7 @@ class StaticObstacleCREnv(gym.Env):
         ac_length = 3
 
         for i in range(NUM_INTRUDERS):
-            int_idx = i+1
+            int_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             int_hdg = bs.traf.hdg[int_idx]
             heading_end_x = ((np.sin(np.deg2rad(int_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
             heading_end_y = ((np.cos(np.deg2rad(int_hdg)) * ac_length)/MAX_DISTANCE)*self.window_width
