@@ -175,27 +175,25 @@ class CentralisedStaticObstacleCREnv(gym.Env):
         return observation, reward, done, truncated, info
     
     def _generate_aircraft(self, num_aircraft = NUM_AC):
-
+        
         self.aircraft_names = []
-        for i in range(num_aircraft):
+        for i in range(num_aircraft): 
             aircraft_name = 'AC' + str(i+1)
             self.aircraft_names.append(aircraft_name)
 
-            check_if_invalid = True
+            check_if_inside_obs = True
             loop_counter = 0
-            # resample until the new aircraft lands outside every obstacle AND
-            # outside the protected zone (INTRUSION_DISTANCE) of every aircraft
-            # already placed this episode
-            while check_if_invalid:
+            # check if aircraft is is created inside obstacle
+            while check_if_inside_obs:
                 loop_counter+= 1
 
                 aircraft_dis_from_reference = np.random.randint(AC_DISTANCE_MIN, AC_DISTANCE_MAX)
                 aircraft_hdg_from_reference = np.random.randint(0, 360)
-
+                
                 aircraft_lat, aircraft_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], aircraft_dis_from_reference, aircraft_hdg_from_reference)
-
+                
                 bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD)
-
+                
                 ac_idx = bs.traf.id2idx(aircraft_name)
 
                 inside_temp = []
@@ -203,24 +201,11 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], bs.traf.lat, bs.traf.lon, bs.traf.alt)[-1])
 
                 check_if_inside_obs = any(x == True for x in inside_temp)
-
-                too_close_to_other_ac = False
-                for other_name in self.aircraft_names[:i]:
-                    other_idx = bs.traf.id2idx(other_name)
-                    _, sep_dist = bs.tools.geo.kwikqdrdist(
-                        bs.traf.lat[ac_idx], bs.traf.lon[ac_idx],
-                        bs.traf.lat[other_idx], bs.traf.lon[other_idx],
-                    )
-                    if sep_dist < INTRUSION_DISTANCE:
-                        too_close_to_other_ac = True
-                        break
-
-                check_if_invalid = check_if_inside_obs or too_close_to_other_ac
-                if check_if_invalid:
+                if check_if_inside_obs:
                     bs.traf.delete(ac_idx)
 
                 if loop_counter > 50:
-                    raise Exception("No aircraft can be generated outside the obstacles and outside other aircraft's protected zones. Check the parameters of the obstacles/aircraft in the definition of the scenario.")
+                    raise Exception("No aircraft can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
         poly_area = np.random.randint(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1])
