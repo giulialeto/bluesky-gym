@@ -600,9 +600,8 @@ class StaticObstacleCREnv(gym.Env):
             terminated = 1
         elif intrusion_terminate:
             terminated = 1
-            done = 1
         elif intrusion_terminate_other_ac: # terminate if the ownship is too close to other aircraft (same logic as restricted area intrusion)
-            done = 1
+            terminated = 1
 
         # reward vector for DOL algorithm, first component is the reach, second component is the avoidance of intrusions and restricted areas
         # last_reward_vector is added to the info dictionary in _get_info() function
