@@ -136,20 +136,20 @@ class StaticObstacleEnv(gym.Env):
 
         for i in range(ACTION_FREQUENCY):
             bs.sim.step()
-            reward, done, terminated = self._get_reward()
+            reward, terminated, truncated = self._get_reward()
             if self.render_mode == "human":
                 self._render_frame()
-            if terminated or done:
+            if terminated or truncated:
                 observation = self._get_obs()
                 self.total_reward += reward
                 info = self._get_info()
-                return observation, reward, done, terminated, info
+                return observation, reward, terminated, truncated, info
 
         observation = self._get_obs()
         self.total_reward += reward
         info = self._get_info()
 
-        return observation, reward, done, terminated, info
+        return observation, reward, terminated, truncated, info
 
     def _generate_polygon(self, centre):
         poly_area = np.random.randint(OBSTACLE_AREA_RANGE[0]*2, OBSTACLE_AREA_RANGE[1])
@@ -366,15 +366,15 @@ class StaticObstacleEnv(gym.Env):
         
         total_reward = reach_reward + drift_reward + intrusion_reward
         
-        done = 0
+        terminated = 0
         if self.wpt_reach[0] == 1:
-            done = 1
+            terminated = 1
         elif intrusion_terminate:
-            done = 1
+            terminated = 1
 
         # Always return truncated as False, as timelimit is managed outside
-        return total_reward, done, False
-    
+        return total_reward, terminated, False
+
     def _check_waypoint(self):
         reward = 0
         index = 0
