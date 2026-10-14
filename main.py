@@ -18,29 +18,31 @@ from bluesky_gym.utils import logger
 
 bluesky_gym.register_envs()
 
-env_name = 'HorizontalCREnv-v1'
+env_name = 'StaticObstacleCREnv-v1'
 algorithm = SAC
+
+TIMESTEPS = 4000003
 
 # Initialize logger
 log_dir = f'./logs/{env_name}/'
-file_name = f'{env_name}_{str(algorithm.__name__)}.csv'
+file_name = f'{env_name}_{str(algorithm.__name__)}_{TIMESTEPS}.csv'
 csv_logger_callback = logger.CSVLoggerCallback(log_dir, file_name)
 
 TRAIN = True
 EVAL_EPISODES = 10
 
 if __name__ == "__main__":
-    env = gym.make(env_name, render_mode=None)
+    env = gym.make(env_name, render_mode=None, max_episode_steps=200)
     # obs, info = env.reset()
-    model = algorithm("MultiInputPolicy", env, verbose=1,learning_rate=3e-4)
+    model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=42, learning_starts=10000)
     if TRAIN:
-        model.learn(total_timesteps=2e6, callback=csv_logger_callback)
-        model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model")
+        model.learn(total_timesteps=TIMESTEPS, callback=csv_logger_callback)
+        model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}")
         del model
     env.close()
     
     # Test the trained model
-    model = algorithm.load(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model", env=env)
+    model = algorithm.load(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}", env=env)
     env = gym.make(env_name, render_mode="human")
     for i in range(EVAL_EPISODES):
         done = truncated = False

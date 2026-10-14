@@ -15,7 +15,6 @@ import datetime
 import os
 import numpy as np
 import bluesky_gym
-import traceback
 import shutil
 
 from bluesky_gym.utils import logger_parallelised_callback as logger
@@ -24,20 +23,22 @@ from bluesky_gym.utils import model_checkpoint_callback
 bluesky_gym.register_envs()
 
 env_name = 'StaticObstacleCREnv-v1'
-algorithm = PPO
+algorithm = SAC
 
 num_cpu = 7
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
+
 # Initialize logger
 log_dir = f'./logs/{env_name}/'
-file_name = f'{env_name}_{str(algorithm.__name__)}.csv'
+file_name = f'{env_name}_{str(algorithm.__name__)}_{TIMESTEPS}.csv'
 csv_logger_callback = logger.CSVLoggerCallback(log_dir, file_name)
-    
-TRAIN = False
+
+TRAIN = True
 EVAL_EPISODES = 10
+TIMESTEPS = 4000003 #1e7
 
 resume_from_checkpoint = False  # Set to True to resume training from the last checkpoint
 
@@ -46,7 +47,7 @@ env_counter = 0
 
 if __name__ == "__main__":
 
-    # training and evaluation
+     # training and evaluation
     tic = datetime.datetime.now()
 
     # define the environment with parallelized environments using SubprocVecEnv
@@ -54,6 +55,8 @@ if __name__ == "__main__":
             n_envs=num_cpu,
             seed=0,
             vec_env_cls=SubprocVecEnv)
+   
+    # env = gym.make(env_name, render_mode=None, max_episode_steps=200)
 
     save_path=(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/")
     save_callback = model_checkpoint_callback.SaveModelCallback(save_freq=50000, save_path=save_path, verbose=1)
@@ -72,26 +75,32 @@ if __name__ == "__main__":
             print("Replay buffer restored")
         resumed = True
     else:
-        model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4)
+        model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=42, learning_starts=10000)
         resumed = False
 
+    # model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=42, learning_starts=10000)
+    
+    
     if TRAIN:
-        remaining_timesteps = 1e7 - model.num_timesteps if resumed else 1e7
+        remaining_timesteps = TIMESTEPS - model.num_timesteps if resumed else TIMESTEPS
 
         model.learn(total_timesteps=remaining_timesteps, callback = CallbackList([save_callback,csv_logger_callback]), reset_num_timesteps=not resumed)
-        model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model")
+        model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}")
         del model
         # final model saved successfully, clean up intermediate checkpoints
         shutil.rmtree(checkpoint_dir, ignore_errors=True)
 
+    # if TRAIN:
+    #     model.learn(total_timesteps=TIMESTEPS, callback=csv_logger_callback)
+    #     model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}")
+    #     del model
     env.close()
     del env
 
     # Test the trained model
+    model = algorithm.load(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}", env=env)
     env = gym.make(env_name, render_mode="human")
-    model = algorithm.load(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model", env=env)
     for i in range(EVAL_EPISODES):
-
         done = truncated = False
         obs, info = env.reset()
         tot_rew = 0
@@ -106,4 +115,4 @@ if __name__ == "__main__":
 
     toc = datetime.datetime.now()
     print(f'Finished evaluation at {toc}')
-    print(f'Elapsed time: {toc - tic}')
+    print(f'Elapsed time: {toc - tic}')    

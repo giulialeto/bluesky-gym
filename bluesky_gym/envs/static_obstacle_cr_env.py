@@ -12,11 +12,12 @@ from gymnasium import spaces
 from shapely.geometry import Polygon
 
 DISTANCE_MARGIN = 5 # km
-REACH_REWARD = 1 # reach set waypoint
+REACH_REWARD = 5 # reach set waypoint
 
 DRIFT_PENALTY = -0.01
 AC_INTRUSION_PENALTY = -5
 RESTRICTED_AREA_INTRUSION_PENALTY = -5
+PROGRESS_REWARD_WEIGHT = 0.5
 
 WAYPOINT_DISTANCE_MIN = 180 # KM
 WAYPOINT_DISTANCE_MAX = 400 # KM
@@ -31,7 +32,8 @@ D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
-ALTITUDE = 350 # In FL
+ALTITUDE_FT = 35000 # ft
+ALTITUDE = ALTITUDE_FT * 0.3048 # m
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -121,6 +123,8 @@ class StaticObstacleCREnv(gym.Env):
         self.min_obstacle_distance = np.full(NUM_OBSTACLES, np.inf)  # running minimum distance per obstacle
         self.actual_path_length = 0.0
         self.planned_path_length = 0.0
+        self.last_reward_vector = np.zeros(2, dtype=np.float32)
+        self.previous_destination_waypoint_distance = None
 
         self.obstacle_names = []
 
@@ -141,6 +145,8 @@ class StaticObstacleCREnv(gym.Env):
         self.los_state = np.zeros(NUM_INTRUDERS, dtype=bool)  # tracks per-intruder intrusion state
         self.total_intrusion_time = 0
         self.average_drift = np.array([])
+        self.last_reward_vector = np.zeros(2, dtype=np.float32)
+        self.previous_destination_waypoint_distance = None
         self.impossible_route_counter = 0
         self.reach_reward = 0
         self.drift_reward = 0
@@ -679,23 +685,45 @@ class StaticObstacleCREnv(gym.Env):
             'path_length_ratio': self.actual_path_length / self.planned_path_length if self.planned_path_length > 0 else None,
             'actual_path_length': self.actual_path_length,
             'planned_path_length': self.planned_path_length,
-            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0 else None  # seconds
+            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0, else None  # seconds
 
+            'reward_vector': self.last_reward_vector.copy(),
+            'reward_components': [
+                'reach_drift_progress_reward',
+                'intrusions_restrictions_reward'
+            ],
         }
 
     def _get_reward(self):
         reach_reward = self._check_waypoint()
-        drift_reward = self._check_drift()
-        intrusion_other_ac_reward = self._check_intrusion_other_ac()
+        drift_reward = self._check_drift() # drift reward is now replaced by progress reward
+        progress_reward = self._check_progress()
+        intrusion_other_ac_reward, intrusion_terminate_other_ac = self._check_intrusion_other_ac()
         intrusion_reward, intrusion_terminate = self._check_intrusion()
-
-        total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
+        
+        # old reward
+        # total_reward = reach_reward + drift_reward + intrusion_other_ac_reward + intrusion_reward
+        # new reward
+        total_reward = reach_reward + progress_reward + intrusion_other_ac_reward + intrusion_reward
 
         terminated = 0
         if self.wpt_reach[0] == 1:
             terminated = 1
         elif intrusion_terminate:
             terminated = 1
+        elif intrusion_terminate_other_ac: # terminate if the ownship is too close to other aircraft (same logic as restricted area intrusion)
+            terminated = 1
+
+        # reward vector for DOL algorithm, first component is the reach, second component is the avoidance of intrusions and restricted areas
+        # last_reward_vector is added to the info dictionary in _get_info() function
+        # it is used only for DOL
+        self.last_reward_vector = np.array(
+            [
+                reach_reward + progress_reward,
+                intrusion_other_ac_reward + intrusion_reward
+            ],
+            dtype=np.float32,
+        )
 
         # update logging variables only once per control step
         if self.counter_sub_step == ACTION_FREQUENCY or terminated:
@@ -729,6 +757,7 @@ class StaticObstacleCREnv(gym.Env):
     def _check_intrusion_other_ac(self):
         ac_idx = bs.traf.id2idx('KL001')
         reward = 0
+        terminate = 0
         for i in range(NUM_INTRUDERS):
             int_idx = bs.traf.id2idx(self.other_aircraft_names[i])
             _, int_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], bs.traf.lat[int_idx], bs.traf.lon[int_idx])
@@ -744,10 +773,14 @@ class StaticObstacleCREnv(gym.Env):
             # Update the intrusion counter only when the aircraft transitions from a non-intruding state to an intruding state
             if currently_intruding and not self.los_state[i]:
                 self.intrusion_counter += 1
-
+            
             self.los_state[i] = currently_intruding
 
-        return reward
+            if int_dis < INTRUSION_DISTANCE*0.1: # If the ownship is too close to other aircraft, terminate the episode
+                self.crashed = 1
+                terminate = 1
+                
+        return reward, terminate
 
     def _check_intrusion(self):
         ac_idx = bs.traf.id2idx('KL001')
@@ -759,6 +792,15 @@ class StaticObstacleCREnv(gym.Env):
                 self.crashed = 1
                 terminate = 1
         return reward, terminate
+    
+    def _check_progress(self):
+        distance = self.destination_waypoint_distance[0]
+        if self.previous_destination_waypoint_distance is None:
+            self.previous_destination_waypoint_distance = distance
+            return 0
+        reward = (self.previous_destination_waypoint_distance - distance) * PROGRESS_REWARD_WEIGHT
+        self.previous_destination_waypoint_distance = distance
+        return reward
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING

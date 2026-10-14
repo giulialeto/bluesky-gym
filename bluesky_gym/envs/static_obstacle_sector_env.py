@@ -28,7 +28,8 @@ D_HEADING = 45 #degrees
 D_SPEED = 20/3 # m/s
 
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
-ALTITUDE = 350 # In FL
+ALTITUDE_FT = 35000 # ft
+ALTITUDE = ALTITUDE_FT * 0.3048 # m
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
