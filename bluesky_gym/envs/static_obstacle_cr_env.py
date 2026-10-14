@@ -685,7 +685,7 @@ class StaticObstacleCREnv(gym.Env):
             'path_length_ratio': self.actual_path_length / self.planned_path_length if self.planned_path_length > 0 else None,
             'actual_path_length': self.actual_path_length,
             'planned_path_length': self.planned_path_length,
-            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0, else None  # seconds
+            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0 else None,  # seconds
 
             'reward_vector': self.last_reward_vector.copy(),
             'reward_components': [
@@ -779,7 +779,7 @@ class StaticObstacleCREnv(gym.Env):
             if int_dis < INTRUSION_DISTANCE*0.1: # If the ownship is too close to other aircraft, terminate the episode
                 self.crashed = 1
                 terminate = 1
-                
+
         return reward, terminate
 
     def _check_intrusion(self):
