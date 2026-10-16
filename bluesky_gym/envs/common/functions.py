@@ -41,19 +41,23 @@ def get_point_at_distance(lat1, lon1, d, bearing, R=6371):
     )
     return np.degrees(lat2), np.degrees(lon2)
 
-def random_point_on_circle(radius: float) -> np.array:
+def random_point_on_circle(radius: float, rng=None) -> np.array:
     """ Get a random point on a circle circumference with given radius
     Parameters
     __________
     radius: float
         radius for the circle
+    rng: np.random.Generator, optional
+        generator to sample from (pass the environment's self.np_random for reproducible resets).
+        Defaults to the global numpy generator.
     
     Returns
     __________
     point: np.array
         randomly sampled point
     """
-    alpha = 2 * np.pi * np.random.uniform(0., 1.)
+    rng = np.random if rng is None else rng
+    alpha = 2 * np.pi * rng.uniform(0., 1.)
     x = radius * np.cos(alpha)
     y = radius * np.sin(alpha)
     return np.array([x, y])

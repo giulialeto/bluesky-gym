@@ -48,6 +48,35 @@ model.save()
 
 For more info, please refer to the [workshop slides](https://docs.google.com/presentation/d/1Jpwdrx__OMdgHWtQ1yCVQyxsdDFk2ieX/edit?usp=drive_link&ouid=109800667545002770848&rtpof=true&sd=true) that provide additional information on BlueSky-Gym and how to use it for your own needs.
 
+## Reproducible training and evaluation
+
+`main.py` and `main_parallelised.py` take a single base seed, `SEED`, from which 3 seeds are derived: one for the environment, one for the model and one for each evaluation episode of the model. 
+
+To use it in the scripts:
+
+```python
+from bluesky_gym.utils.seeding import derive_seed
+# setting the base seed
+SEED = 42
+
+# model
+model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=derive_seed(SEED, "model"), learning_starts=10000)
+
+# environment
+model.env.seed(derive_seed(SEED, "env"))
+
+# evaluation
+env = gym.make(env_name)
+for episode in range(EVAL_EPISODES):
+    obs, info = env.reset(seed=derive_seed(SEED, "eval", episode))
+```
+
+Notes:
+* The evaluation seeding does not depend on the training seeding. You can train without seeds and still evaluate every model on exactly the same seeded episodes, which makes their results directly comparable.
+* A training run resumed from a checkpoint will not be identical to a training run that completed without interruption because the random-generator states are not stored. New seeds are generated from the checkpoint's saved timestep.
+* For identical results, remember to use the same library versions (torch, numpy, stable-baselines3 and BlueSky) and CPU. If you train on a GPU, enable torch deterministic algorithms.
+* `self.np_random` should be used when building a new environment to ensure reproducibility, never the globabl `np.random`.
+
 ## Contributing and Assistance
 If you would like to contribute to BlueSky-Gym or need assistance in setting up or creating your own environments, do not hesitate to open an issue or reach out to one of us via the BlueSky-Gym [Discord](https://discord.gg/s7CdxcSX).
 Additionally you can have a look at the [roadmap](https://github.com/TUDelft-CNS-ATM/bluesky-gym/issues/24) for inspiration on where you can contribute and to get an idea of the direction BlueSky-Gym is going.

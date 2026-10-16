@@ -15,6 +15,7 @@ import bluesky_gym
 import bluesky_gym.envs
 
 from bluesky_gym.utils import logger
+from bluesky_gym.utils.seeding import derive_seed
 
 bluesky_gym.register_envs()
 
@@ -22,6 +23,10 @@ env_name = 'StaticObstacleCREnv-v1'
 algorithm = SAC
 
 TIMESTEPS = 4000003
+
+# Base seed: every other seed (policy, training env, evaluation episodes) is derived from it,
+# so the same SEED reproduces the same training run and the same evaluation episodes.
+SEED = 42
 
 # Initialize logger
 log_dir = f'./logs/{env_name}/'
@@ -34,7 +39,9 @@ EVAL_EPISODES = 10
 if __name__ == "__main__":
     env = gym.make(env_name, render_mode=None, max_episode_steps=200)
     # obs, info = env.reset()
-    model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=42, learning_starts=10000)
+    model = algorithm("MultiInputPolicy", env, verbose=1, learning_rate=3e-4, seed=derive_seed(SEED, "model"), learning_starts=10000)
+    # SB3 seeds the env with the model seed; give the env its own derived seed instead
+    model.env.seed(derive_seed(SEED, "env"))
     if TRAIN:
         model.learn(total_timesteps=TIMESTEPS, callback=csv_logger_callback)
         model.save(f"models/{env_name}/{env_name}_{str(algorithm.__name__)}/model_{TIMESTEPS}")
@@ -46,7 +53,7 @@ if __name__ == "__main__":
     env = gym.make(env_name, render_mode="human")
     for i in range(EVAL_EPISODES):
         done = truncated = False
-        obs, info = env.reset()
+        obs, info = env.reset(seed=derive_seed(SEED, "eval", i))
         tot_rew = 0
         while not (done or truncated):
             # action = np.array(np.random.randint(-100,100,size=(2))/100)

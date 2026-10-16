@@ -308,8 +308,8 @@ class StaticObstacleCREnv(gym.Env):
             while check_if_inside_obs:
                 loop_counter+= 1
 
-                other_aircraft_dis_from_reference = np.random.randint(OTHER_AC_DISTANCE_MIN, OTHER_AC_DISTANCE_MAX)
-                other_aircraft_hdg_from_reference = np.random.randint(0, 360)
+                other_aircraft_dis_from_reference = self.np_random.integers(OTHER_AC_DISTANCE_MIN, OTHER_AC_DISTANCE_MAX)
+                other_aircraft_hdg_from_reference = self.np_random.integers(0, 360)
                 
                 other_aircraft_lat, other_aircraft_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx_actor], bs.traf.lon[ac_idx_actor], other_aircraft_dis_from_reference, other_aircraft_hdg_from_reference)
                 
@@ -329,14 +329,14 @@ class StaticObstacleCREnv(gym.Env):
                     raise Exception("No aircraft can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
-        poly_area = np.random.randint(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1])
+        poly_area = self.np_random.integers(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1])
         R = np.sqrt(poly_area/ np.pi)
-        p = [fn.random_point_on_circle(R) for _ in range(3)] # 3 random points to start building the polygon
+        p = [fn.random_point_on_circle(R, self.np_random) for _ in range(3)] # 3 random points to start building the polygon
         p = fn.sort_points_clockwise(p)
         p_area = fn.polygon_area(p)
         
         while p_area < POLY_AREA_RANGE[0]:
-            p.append(fn.random_point_on_circle(R))
+            p.append(fn.random_point_on_circle(R, self.np_random))
             p = fn.sort_points_clockwise(p)
             p_area = fn.polygon_area(p)
         
@@ -447,10 +447,10 @@ class StaticObstacleCREnv(gym.Env):
             while check_inside_var:
                 loop_counter += 1
                 if i == 0:
-                    wpt_dis_init = np.random.randint(100, 170)
+                    wpt_dis_init = self.np_random.integers(100, 170)
                 else:
-                    wpt_dis_init = np.random.randint(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
-                wpt_hdg_init = np.random.randint(0, 360)
+                    wpt_dis_init = self.np_random.integers(WAYPOINT_DISTANCE_MIN, WAYPOINT_DISTANCE_MAX)
+                wpt_hdg_init = self.np_random.integers(0, 360)
                 wpt_lat, wpt_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], wpt_dis_init, wpt_hdg_init)
 
                 # working around the bug in bluesky that gives a ValueError when checkInside is used to check a single element
@@ -481,8 +481,8 @@ class StaticObstacleCREnv(gym.Env):
         self.obstacle_centre_lon = []
         
         for i in range(num_obstacles):
-            obstacle_dis_from_reference = np.random.randint(OBSTACLE_DISTANCE_MIN, OBSTACLE_DISTANCE_MAX)
-            obstacle_hdg_from_reference = np.random.randint(0, 360)
+            obstacle_dis_from_reference = self.np_random.integers(OBSTACLE_DISTANCE_MIN, OBSTACLE_DISTANCE_MAX)
+            obstacle_hdg_from_reference = self.np_random.integers(0, 360)
             ac_idx = bs.traf.id2idx(acid)
 
             obstacle_centre_lat, obstacle_centre_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], obstacle_dis_from_reference, obstacle_hdg_from_reference)    
