@@ -224,18 +224,18 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                     raise Exception("No aircraft can be generated outside the obstacles and outside other aircraft's protected zones. Check the parameters of the obstacles/aircraft in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
-        poly_area = self.np_random.integers(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1])
-        R = np.sqrt(poly_area/ np.pi)
+        poly_area = self.np_random.integers(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1]) # NM^2
+        R = np.sqrt(poly_area/ np.pi) # NM
         p = [fn.random_point_on_circle(R, self.np_random) for _ in range(3)] # 3 random points to start building the polygon
         p = fn.sort_points_clockwise(p)
-        p_area = fn.polygon_area(p)
+        p_area = fn.polygon_area(p) # NM^2
         
         while p_area < POLY_AREA_RANGE[0]:
             p.append(fn.random_point_on_circle(R, self.np_random))
             p = fn.sort_points_clockwise(p)
-            p_area = fn.polygon_area(p)
+            p_area = fn.polygon_area(p) # NM^2
         
-        p = [fn.nm_to_latlong(centre, point) for point in p] # Convert to lat/long coordinateS
+        p = [fn.nm_to_latlong(centre, point) for point in p] # Convert to lat/long coordinates
         
         return p_area, p, R
     
@@ -447,8 +447,8 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
-                # observations on obstacles
-                "restricted_area_radius": np.array(self.obstacle_radius).reshape(-1)/(POLY_AREA_RANGE[0]),
+                # observations on obstacles (distance - radius is the clearance to the obstacle boundary)
+                "restricted_area_radius": np.array(self.obstacle_radius).reshape(-1) * NM2KM / WAYPOINT_DISTANCE_MAX, #km
                 "restricted_area_distance": np.array(self.obstacle_centre_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing).reshape(-1),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1)
