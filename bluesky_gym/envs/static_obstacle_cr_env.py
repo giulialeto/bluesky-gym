@@ -123,6 +123,7 @@ class StaticObstacleCREnv(gym.Env):
         self.min_obstacle_distance = np.full(NUM_OBSTACLES, np.inf)  # running minimum distance per obstacle
         self.actual_path_length = 0.0
         self.planned_path_length = 0.0
+        self.planned_path_tas = 0.0  # m/s, TAS of the ownship
         self.last_reward_vector = np.zeros(2, dtype=np.float32)
         self.previous_destination_waypoint_distance = None
 
@@ -166,6 +167,7 @@ class StaticObstacleCREnv(gym.Env):
         self.min_obstacle_distance = np.full(NUM_OBSTACLES, np.inf)  # running minimum distance per obstacle    
         self.actual_path_length = 0.0
         self.planned_path_length = 0.0
+        self.planned_path_tas = 0.0  # m/s, TAS of the ownship
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
 
@@ -209,6 +211,7 @@ class StaticObstacleCREnv(gym.Env):
                 )
                 # sum up the distance between consecutive waypoints in the planned path
                 self.planned_path_length = 0.0
+                self.planned_path_tas = float(bs.traf.tas[ac_idx])  # m/s, same TAS given to the planner
                 path_points = [(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])] + planned_path_ownship
                 for j in range(len(path_points) - 1):
                     _, seg_dis = bs.tools.geo.kwikqdrdist(
@@ -685,7 +688,7 @@ class StaticObstacleCREnv(gym.Env):
             'path_length_ratio': self.actual_path_length / self.planned_path_length if self.planned_path_length > 0 else None,
             'actual_path_length': self.actual_path_length,
             'planned_path_length': self.planned_path_length,
-            'planned_path_time': (self.planned_path_length * 1000) / AC_SPD if self.planned_path_length > 0 else None,  # seconds
+            'planned_path_time': (self.planned_path_length * 1000) / self.planned_path_tas if self.planned_path_length > 0 and self.planned_path_tas > 0 else None,  # seconds: planned length (km) at the TAS used by the planner (m/s)
 
             'reward_vector': self.last_reward_vector.copy(),
             'reward_components': [
