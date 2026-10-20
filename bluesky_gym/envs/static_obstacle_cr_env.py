@@ -316,7 +316,7 @@ class StaticObstacleCREnv(gym.Env):
                 
                 other_aircraft_lat, other_aircraft_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx_actor], bs.traf.lon[ac_idx_actor], other_aircraft_dis_from_reference, other_aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD)
+                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD, acalt=ALTITUDE)
                 
                 ac_idx = bs.traf.id2idx(other_aircraft_name)
 
@@ -836,7 +836,7 @@ class StaticObstacleCREnv(gym.Env):
             self.spd_action_delta = np.append(self.spd_action_delta, abs(action[1] - self.prev_spd_action))
 
             # count direction reversals — sign flip on non-negligible actions
-            # non-negligigle action is currently defined as larger than 0.05, corresponding to pm 2.25 degrees (0.05*D_HEADING) and pm 0.33 knots (0.05*D_SPEED). 
+            # non-negligible action is currently defined as larger than 0.05, corresponding to pm 2.25 degrees (0.05*D_HEADING) and pm 0.33 m/s (0.05*D_SPEED). 
             # This is a parameter that can be tuned.
             
             if np.sign(action[0]) != np.sign(self.prev_hdg_action) and abs(action[0]) > 0.05 and abs(self.prev_hdg_action) > 0.05:

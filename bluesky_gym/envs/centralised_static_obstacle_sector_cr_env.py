@@ -206,7 +206,7 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 
                 aircraft_lat, aircraft_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], aircraft_dis_from_reference, aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD)
+                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD, acalt=ALTITUDE)
                 
                 ac_idx = bs.traf.id2idx(aircraft_name)
 
