@@ -25,6 +25,12 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
+# NEAR_DISTANCE_NORM is a normalisation factor for:
+# - Distances to obstacle centres,
+# All of these distances are divided by NEAR_DISTANCE_NORM and clipped to [0, 1]: everything further away reads 1 ("far").
+# NOTE: The normalization factor for destination distances is WAYPOINT_DISTANCE_MAX. These are also divided by WAYPOINT_DISTANCE_MAX and clipped to [0, 1].
+NEAR_DISTANCE_NORM = 150 # KM
+
 AC_DISTANCE_MIN = 50 # KM
 AC_DISTANCE_MAX = 170 # KM
 
@@ -392,12 +398,12 @@ class CentralisedStaticObstacleEnv(gym.Env):
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
         observation = {
-                "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "destination_waypoint_distance": np.clip(np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX, 0, 1),
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
                 # observations on obstacles (distance - radius is the clearance to the obstacle boundary)
                 "restricted_area_radius": np.array(self.obstacle_radius).reshape(-1) * NM2KM / WAYPOINT_DISTANCE_MAX, #km
-                "restricted_area_distance": np.array(self.obstacle_centre_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
+                "restricted_area_distance": np.clip(np.array(self.obstacle_centre_distance).reshape(-1)/NEAR_DISTANCE_NORM, 0, 1),
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing).reshape(-1),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1)
             }

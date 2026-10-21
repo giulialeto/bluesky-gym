@@ -25,6 +25,13 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
+# NEAR_DISTANCE_NORM is a normalisation factor for:
+# - Distances to intruders, 
+# - Distances to obstacle centres,
+# All of these distances are divided by NEAR_DISTANCE_NORM and clipped to [0, 1]: everything further away reads 1 ("far").
+# NOTE: The normalization factor for destination distances is WAYPOINT_DISTANCE_MAX. These are also divided by WAYPOINT_DISTANCE_MAX and clipped to [0, 1].
+NEAR_DISTANCE_NORM = 150 # KM
+
 OTHER_AC_DISTANCE_MIN = 50 # KM
 OTHER_AC_DISTANCE_MAX = 170 # KM
 
@@ -641,17 +648,17 @@ class StaticObstacleCREnv(gym.Env):
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
         observation = {
-                "intruder_distance": np.array(self.intruder_distance)/WAYPOINT_DISTANCE_MAX,
+                "intruder_distance": np.clip(np.array(self.intruder_distance)/NEAR_DISTANCE_NORM, 0, 1),
                 "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing),
                 "intruder_sin_difference_pos": np.array(self.intruder_sin_bearing),
                 "intruder_x_difference_speed": np.array(self.intruder_x_difference_speed)/AC_TAS,
                 "intruder_y_difference_speed": np.array(self.intruder_y_difference_speed)/AC_TAS,
-                "destination_waypoint_distance": np.array(self.destination_waypoint_distance)/WAYPOINT_DISTANCE_MAX,
+                "destination_waypoint_distance": np.clip(np.array(self.destination_waypoint_distance)/WAYPOINT_DISTANCE_MAX, 0, 1),
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift),
                 # observations on obstacles (distance - radius is the clearance to the obstacle boundary)
                 "restricted_area_radius": np.array(self.obstacle_radius) * NM2KM / WAYPOINT_DISTANCE_MAX, #km
-                "restricted_area_distance": np.array(self.obstacle_centre_distance)/WAYPOINT_DISTANCE_MAX,
+                "restricted_area_distance": np.clip(np.array(self.obstacle_centre_distance)/NEAR_DISTANCE_NORM, 0, 1),
                 "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing),
                 "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing)                
             }
