@@ -30,12 +30,12 @@ OTHER_AC_DISTANCE_MIN = 50 # KM
 OTHER_AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # m/s
+D_SPEED_CAS_MS = 20/3 # m/s
 
-AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
+AC_SPD_CAS_MS = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE_FT = 35000 # ft
-ALTITUDE = ALTITUDE_FT * 0.3048 # m
-AC_TAS = cas2tas(AC_SPD, ALTITUDE) # m/s, used to normalise ground-speed differences (with no wind, TAS = GS)
+ALTITUDE_M = ALTITUDE_FT * 0.3048 # m
+AC_TAS = cas2tas(AC_SPD_CAS_MS, ALTITUDE_M) # m/s, used to normalise ground-speed differences (with no wind, TAS = GS)
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -144,7 +144,7 @@ class StaticObstacleSectorCREnv(gym.Env):
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
 
-        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
         ac_idx = bs.traf.id2idx('KL001')
         
         self.sample_entire_scenario = True
@@ -301,7 +301,7 @@ class StaticObstacleSectorCREnv(gym.Env):
                 
                 other_aircraft_lat, other_aircraft_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx_actor], bs.traf.lon[ac_idx_actor], other_aircraft_dis_from_reference, other_aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD, acalt=ALTITUDE)
+                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
                 
                 ac_idx = bs.traf.id2idx(other_aircraft_name)
 
@@ -757,12 +757,12 @@ class StaticObstacleSectorCREnv(gym.Env):
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING
-        dv = action[1] * D_SPEED
+        dv = action[1] * D_SPEED_CAS_MS
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
-        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt # convert to knots for BlueSky stack command
 
-        bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        bs.stack.stack(f"HDG {'KL001'} {heading_new}") # degrees
+        bs.stack.stack(f"SPD {'KL001'} {speed_new}") # kts
 
     def _render_frame(self):
         # options for rendering

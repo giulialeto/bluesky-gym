@@ -22,11 +22,11 @@ OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # m/s
+D_SPEED_CAS_MS = 20/3 # m/s
 
-AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
+AC_SPD_CAS_MS = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE_FT = 35000 # ft
-ALTITUDE = ALTITUDE_FT * 0.3048 # m
+ALTITUDE_M = ALTITUDE_FT * 0.3048 # m
 
 
 NM2KM = 1.852
@@ -104,7 +104,7 @@ class StaticObstacleEnv(gym.Env):
         self.crashed = 0
         self.average_drift = np.array([])
 
-        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
 
         # defining screen coordinates
         # defining the reference point as the top left corner of the SQUARE screen
@@ -410,12 +410,12 @@ class StaticObstacleEnv(gym.Env):
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING
-        dv = action[1] * D_SPEED
+        dv = action[1] * D_SPEED_CAS_MS
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
-        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt # convert to knots for BlueSky stack command
 
-        bs.stack.stack(f"HDG {'KL001'} {heading_new}")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new}")
+        bs.stack.stack(f"HDG {'KL001'} {heading_new}") # degrees
+        bs.stack.stack(f"SPD {'KL001'} {speed_new}") # kts
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":

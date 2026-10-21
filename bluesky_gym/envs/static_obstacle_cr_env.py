@@ -29,12 +29,12 @@ OTHER_AC_DISTANCE_MIN = 50 # KM
 OTHER_AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # m/s
+D_SPEED_CAS_MS = 20/3 # m/s
 
-AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
+AC_SPD_CAS_MS = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE_FT = 35000 # ft
-ALTITUDE = ALTITUDE_FT * 0.3048 # m
-AC_TAS = cas2tas(AC_SPD, ALTITUDE) # m/s, used to normalise ground-speed differences (with no wind, TAS = GS)
+ALTITUDE_M = ALTITUDE_FT * 0.3048 # m
+AC_TAS = cas2tas(AC_SPD_CAS_MS, ALTITUDE_M) # m/s, used to normalise ground-speed differences (with no wind, TAS = GS)
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -180,7 +180,7 @@ class StaticObstacleCREnv(gym.Env):
         
         self.screen_coords = [lat_ref_point,lon_ref_point]#[52.9, 2.6]
         
-        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD, acalt=ALTITUDE)
+        bs.traf.cre('KL001',actype="A320", aclat = CENTER[0], aclon = CENTER[1], acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
         ac_idx = bs.traf.id2idx('KL001')
         
         self.sample_entire_scenario = True
@@ -317,7 +317,7 @@ class StaticObstacleCREnv(gym.Env):
                 
                 other_aircraft_lat, other_aircraft_lon = fn.get_point_at_distance(bs.traf.lat[ac_idx_actor], bs.traf.lon[ac_idx_actor], other_aircraft_dis_from_reference, other_aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD, acalt=ALTITUDE)
+                bs.traf.cre(acid=other_aircraft_name,actype="A320",aclat=other_aircraft_lat, aclon=other_aircraft_lon, acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
                 
                 ac_idx = bs.traf.id2idx(other_aircraft_name)
 
@@ -808,9 +808,9 @@ class StaticObstacleCREnv(gym.Env):
 
     def _get_action(self,action):
         dh = action[0] * D_HEADING
-        dv = action[1] * D_SPEED
+        dv = action[1] * D_SPEED_CAS_MS
         heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx('KL001')] + dh)
-        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt
+        speed_new = (bs.traf.cas[bs.traf.id2idx('KL001')] + dv) * MpS2Kt # convert to knots for BlueSky stack command
         
         heading_str = f"{heading_new:.6f}"
         speed_str = f"{speed_new:.6f}"
@@ -821,11 +821,11 @@ class StaticObstacleCREnv(gym.Env):
         if not isinstance(heading_new, float) or not np.isfinite(heading_new):
             print(f"[DEBUG] bad heading_new: {heading_new!r} (type={type(heading_new)})")
 
-        bs.stack.stack(f"HDG {'KL001'} {heading_new:.6f}")
+        bs.stack.stack(f"HDG {'KL001'} {heading_new:.6f}") # degrees
 
         if not isinstance(speed_new, float) or not np.isfinite(speed_new):
             print(f"[DEBUG] bad speed_new: {speed_new!r} (type={type(speed_new)})")
-        bs.stack.stack(f"SPD {'KL001'} {speed_new:.6f}")
+        bs.stack.stack(f"SPD {'KL001'} {speed_new:.6f}") # kts
 
         # logger raw action magnitude
         self.hdg_action = np.append(self.hdg_action, action[0])
@@ -837,7 +837,7 @@ class StaticObstacleCREnv(gym.Env):
             self.spd_action_delta = np.append(self.spd_action_delta, abs(action[1] - self.prev_spd_action))
 
             # count direction reversals — sign flip on non-negligible actions
-            # non-negligible action is currently defined as larger than 0.05, corresponding to pm 2.25 degrees (0.05*D_HEADING) and pm 0.33 m/s (0.05*D_SPEED). 
+            # non-negligible action is currently defined as larger than 0.05, corresponding to pm 2.25 degrees (0.05*D_HEADING) and pm 0.33 m/s (0.05*D_SPEED_CAS_MS). 
             # This is a parameter that can be tuned.
             
             if np.sign(action[0]) != np.sign(self.prev_hdg_action) and abs(action[0]) > 0.05 and abs(self.prev_hdg_action) > 0.05:

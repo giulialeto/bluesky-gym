@@ -29,11 +29,11 @@ AC_DISTANCE_MIN = 50 # KM
 AC_DISTANCE_MAX = 170 # KM
 
 D_HEADING = 45 #degrees
-D_SPEED = 20/3 # m/s
+D_SPEED_CAS_MS = 20/3 # m/s
 
-AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
+AC_SPD_CAS_MS = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE_FT = 35000 # ft
-ALTITUDE = ALTITUDE_FT * 0.3048 # m
+ALTITUDE_M = ALTITUDE_FT * 0.3048 # m
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -188,7 +188,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
                 
                 aircraft_lat, aircraft_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], aircraft_dis_from_reference, aircraft_hdg_from_reference)
                 
-                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD, acalt=ALTITUDE)
+                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
                 
                 ac_idx = bs.traf.id2idx(aircraft_name)
 
@@ -263,7 +263,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
                 found_overlap = False
                 for k in range(0, len(obstacle_vertices[j])):
                     # check if the vertices of the obstacle are inside the other obstacles
-                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([ALTITUDE]))[0]
+                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([ALTITUDE_M]))[0]
                     if overlap:
                         overlap_list.append(obstacle_names[j])
                         break #break vertex loop
@@ -273,7 +273,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
                     else:
                         interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][k+1])
                     for point in interpolated_points:
-                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([ALTITUDE]))[0]
+                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([ALTITUDE_M]))[0]
                         if overlap:
                             overlap_list.append(obstacle_names[j])
                             found_overlap = True
@@ -319,7 +319,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
                 # working around the bug in bluesky that gives a ValueError when checkInside is used to check a single element
                 wpt_lat_array = np.array([wpt_lat, wpt_lat])
                 wpt_lon_array = np.array([wpt_lon, wpt_lon])
-                ac_idx_alt_array = np.array([ALTITUDE, ALTITUDE])
+                ac_idx_alt_array = np.array([ALTITUDE_M, ALTITUDE_M])
                 inside_temp = []
                 for j in range(NUM_OBSTACLES):
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], wpt_lat_array, wpt_lon_array, ac_idx_alt_array)[0])
@@ -472,7 +472,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
             action_index = i
 
             # if self.wpt_reach[i] != 1: # only change the heading and speed if the waypoint has not been reached yet
-            dv = action[action_index*2+1] * D_SPEED
+            dv = action[action_index*2+1] * D_SPEED_CAS_MS
             dh = action[action_index*2] * D_HEADING
             self.v_action.append(dv)
             self.hdg_action.append(dh)
@@ -480,11 +480,11 @@ class CentralisedStaticObstacleEnv(gym.Env):
             ind_ac = self.ac_indices[i] # this is to map the controll-ee to the instantaneous action space (since we change ac)
 
             heading_new = fn.bound_angle_positive_negative_180(bs.traf.hdg[bs.traf.id2idx(f'AC{ind_ac}')] + dh)
-            speed_new = (bs.traf.cas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt
+            speed_new = (bs.traf.cas[bs.traf.id2idx(f'AC{ind_ac}')] + dv) * MpS2Kt # convert to knots for BlueSky stack command
             # speed_new = speed_new if speed_new>0 else 0
         
-            bs.stack.stack(f"HDG AC{ind_ac} {heading_new}")
-            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}")
+            bs.stack.stack(f"HDG AC{ind_ac} {heading_new}") # degrees
+            bs.stack.stack(f"SPD AC{ind_ac} {speed_new}") # kts
 
     def _render_frame(self):
         # options for rendering
