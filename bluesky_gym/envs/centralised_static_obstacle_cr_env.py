@@ -5,7 +5,7 @@ import bluesky as bs
 from bluesky_gym.envs.common.screen_dummy import ScreenDummy
 import bluesky_gym.envs.common.functions as fn
 import bluesky_gym.envs.common.deterministic_path_planning as path_plan
-from bluesky.tools.aero import kts
+from bluesky.tools.aero import kts, cas2tas
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -34,6 +34,7 @@ D_SPEED = 20/3 # m/s
 AC_SPD = 150 # m/s (CAS - typical commercial airliner cruise value)
 ALTITUDE_FT = 35000 # ft
 ALTITUDE = ALTITUDE_FT * 0.3048 # m
+AC_TAS = cas2tas(AC_SPD, ALTITUDE) # m/s, used to normalise ground-speed differences (with no wind, TAS = GS)
 
 NM2KM = 1.852
 MpS2Kt = 1.94384
@@ -442,8 +443,8 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                 "intruder_distance": np.array(self.intruder_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
                 "intruder_cos_difference_pos": np.array(self.intruder_cos_bearing).reshape(-1),
                 "intruder_sin_difference_pos": np.array(self.intruder_sin_bearing).reshape(-1),
-                "intruder_x_difference_speed": np.array(self.intruder_x_difference_speed).reshape(-1)/AC_SPD,
-                "intruder_y_difference_speed": np.array(self.intruder_y_difference_speed).reshape(-1)/AC_SPD,
+                "intruder_x_difference_speed": np.array(self.intruder_x_difference_speed).reshape(-1)/AC_TAS,
+                "intruder_y_difference_speed": np.array(self.intruder_y_difference_speed).reshape(-1)/AC_TAS,
                 "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX,
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
