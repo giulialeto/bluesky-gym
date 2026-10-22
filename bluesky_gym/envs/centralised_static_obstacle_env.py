@@ -25,10 +25,7 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
 
-# NEAR_DISTANCE_NORM is a normalisation factor for:
-# - Distances to obstacle centres,
-# All of these distances are divided by NEAR_DISTANCE_NORM and clipped to [0, 1]: everything further away reads 1 ("far").
-# NOTE: The normalization factor for destination distances is WAYPOINT_DISTANCE_MAX. These are also divided by WAYPOINT_DISTANCE_MAX and clipped to [0, 1].
+# Normalisation factor for the observation of obstacles distances
 NEAR_DISTANCE_NORM = 150 # KM
 
 AC_DISTANCE_MIN = 50 # KM
@@ -117,6 +114,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
         super().reset(seed=seed)
         
         bs.traf.reset()
+        self.initial_destination_distance = None
         self.counter = 0
 
         # reset logging variables 
@@ -357,6 +355,14 @@ class CentralisedStaticObstacleEnv(gym.Env):
             self.obstacle_centre_lon.append(obstacle_centre_lon)
     
     def _get_obs(self):
+        """
+        Observation is the normalized.
+        Relative speeds are divided by the initial true airspeed (CAS 150 m/s at 35000 ft).
+        Distances to obstacle centres are divided by NEAR_DISTANCE_NORM, then clipped to [0, 1] to flatten far objects which we don't care about. 
+        The destination distance is observed as (current distance to destination) / (initial destination distance): 1 at the start, 0 at the destination. It is not clipped, so that the agent can learn to avoid going further away from the destination.
+        The obstacle radii are divided by WAYPOINT_DISTANCE_MAX. 
+        """
+
         # destination waypoint
         self.destination_waypoint_distance = []
         self.wpt_qdr = []
@@ -397,8 +403,12 @@ class CentralisedStaticObstacleEnv(gym.Env):
             self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
             self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
 
+        # the first observation of the episode defines the initial destination distance of each aircraft
+        if self.initial_destination_distance is None:
+            self.initial_destination_distance = np.array(self.destination_waypoint_distance, dtype=float).reshape(-1).copy()
+
         observation = {
-                "destination_waypoint_distance": np.clip(np.array(self.destination_waypoint_distance).reshape(-1)/WAYPOINT_DISTANCE_MAX, 0, 1),
+                "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/self.initial_destination_distance,
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
                 # observations on obstacles (distance - radius is the clearance to the obstacle boundary)
