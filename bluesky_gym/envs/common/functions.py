@@ -1,4 +1,8 @@
 import numpy as np
+from bluesky.tools.geo import kwikqdrdist
+from bluesky.tools.aero import nm
+from bluesky.tools.misc import degto180
+from bluesky.tools import areafilter
 from typing import List
 
 def bound_angle_positive_negative_180(angle_deg: float) -> float:
@@ -180,3 +184,79 @@ def get_hdg(point1: np.array, point2: np.array) -> float:
     
     return hdg
 
+
+def polygon_observation(ac_lat: float, ac_lon: float, ac_hdg: float, ac_alt: float, area_name: str, vertices):
+    """ Observation of a (convex) polygonal obstacle as seen from the aircraft.
+    The observation consists of:
+     - the distance to the nearest point of the polygon (positive when the aircraft is outside the polygon, negative when inside), 
+     - the bearing of that point relative to the aircraft heading,
+     - the bearings of the left-most and right-most tangents of the polygon relative to the aircraft heading.
+
+    Parameters
+    __________
+    ac_lat, ac_lon: float
+        position of the aircraft (degrees)
+    ac_hdg: float
+        heading of the aircraft (degrees)
+    ac_alt: float
+        altitude of the aircraft (m)
+    area_name: str
+        name of the polygon in the BlueSky area filter
+    vertices: array-like, shape (N, 2)
+        vertices of the polygon as [lat, lon] (degrees)
+
+    Returns
+    __________
+    clearance_km: float
+        distance (positive when the aircraft is outside the polygon, negative when inside) from the aircraft to the nearest point of the polygon boundary (km)
+    cos_bearing, sin_bearing: float
+        cosine and sine of the bearing (heading − qdr) of the nearest point relative to the aircraft heading. (-)
+    left_edge, right_edge: float
+        angle between the heading and the left-most and right-most tangent of the polygon, (heading - qdr)/180 in [-1, 1]. (-)
+        If the aircraft is inside the polygon the polygon spans all directions: left_edge = 1, right_edge = -1.
+    """
+    v = np.asarray(vertices, dtype=float).reshape(-1, 2)
+
+    # bearing (0 is true north, values 0 to 360) [deg] and distance [NM] from the aircraft to each vertex
+    qdr_vertices, dist_vertices = kwikqdrdist(ac_lat, ac_lon, v[:, 0], v[:, 1])
+    # convert to local coordinates in NM
+    x = dist_vertices * np.sin(np.radians(qdr_vertices)) # [NM]
+    y = dist_vertices * np.cos(np.radians(qdr_vertices)) # [NM]
+    # shift the vertices of one position to later make the segments
+    xn, yn = np.roll(x, -1), np.roll(y, -1)
+
+    # vectors between one vertex of the polygon and the next one
+    ex, ey = xn - x, yn - y
+    # squared length of each edge. 1e-12 is used to avoid division by zero in case of duplicate vertices (which should not happen in theory)
+    seg_len2 = np.maximum(ex * ex + ey * ey, 1e-12)
+    # projection of the aircraft position onto a line defined by each edge. The projection is clipped to the actual boundary of the edge, so t=0 means the projection is either vertex i or further, t=1 means the projection is either vertex i+1 or further.
+    t = np.clip(-(x * ex + y * ey) / seg_len2, 0.0, 1.0)
+    # coordinates of the nearest point (corresponding to the projection t) on each edge between one vertex of the polygon and the next one
+    px, py = x + t * ex, y + t * ey
+    # distance from the aircraft to each nearest point on the segments (either a vertex or on one of the edges)
+    dist = np.hypot(px, py)
+    # index of the edge on the polygon boundary containing the nearest point
+    k = int(np.argmin(dist))
+    # bearing to the nearest point from the aircraft (0 is true north, values 0 to 360) [deg]
+    qdr_nearest = np.degrees(np.arctan2(px[k], py[k])) % 360.0
+
+    # check if the aircraft is inside the polygon
+    inside = bool(areafilter.checkInside(area_name, np.array([ac_lat]), np.array([ac_lon]), np.array([ac_alt]))[0])
+
+    clearance_km = (-dist[k] if inside else dist[k]) * nm / 1000.   # NM -> km
+
+    # the bearing of the nearest point relative to the heading
+    bearing = degto180(ac_hdg - qdr_nearest) # relative to the aircraft heading, in [-180, 180]
+    cos_bearing = float(np.cos(np.radians(bearing)))
+    sin_bearing = float(np.sin(np.radians(bearing)))
+
+    if inside:
+        return float(clearance_km), cos_bearing, sin_bearing, 1.0, -1.0 # [km, -, -, -, -]
+
+    # tangents: bearings of the vertices - bearing of the nearest point
+    rel = degto180(qdr_vertices - qdr_nearest) # [deg, range -180, 180]
+    qdr_left = qdr_nearest + rel.min()    # smallest bearing = left-most [deg]
+    qdr_right = qdr_nearest + rel.max()   # largest bearing = right-most [deg]
+    left_edge = degto180(ac_hdg - qdr_left) / 180.0 # normalized bearing to [-1, 1]
+    right_edge = degto180(ac_hdg - qdr_right) / 180.0 # normalized bearing to [-1, 1]
+    return float(clearance_km), cos_bearing, sin_bearing, float(left_edge), float(right_edge) # [km, -, -, -, -]

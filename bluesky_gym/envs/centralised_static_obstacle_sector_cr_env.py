@@ -87,7 +87,8 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 "destination_waypoint_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
                 "destination_waypoint_cos_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
                 "destination_waypoint_sin_drift": spaces.Box(-np.inf, np.inf, shape = (NUM_AC,), dtype=np.float64),
-                "restricted_area_radius": spaces.Box(0, 1, shape = (NUM_OBSTACLES,), dtype=np.float64),
+                "restricted_area_left_edge": spaces.Box(-1, 1, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
+                "restricted_area_right_edge": spaces.Box(-1, 1, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
                 "restricted_area_distance": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES, ), dtype=np.float64),
                 "cos_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
                 "sin_difference_restricted_area_pos": spaces.Box(-np.inf, np.inf, shape = (NUM_AC*NUM_OBSTACLES,), dtype=np.float64),
@@ -467,11 +468,11 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
 
     def _get_obs(self):
         """
-        Observation is the normalized.
-        Relative speeds are divided by the initial true airspeed (CAS 150 m/s at 35000 ft).
-        Distances to intruders, obstacle centres and sector points are divided by NEAR_DISTANCE_NORM, then clipped to [0, 1] to flatten far objects which we don't care about. 
+        Observation is normalised.
+        Relative speeds are divided by the true airspeed corresponding to the initial CAS (150 m/s at 35000 ft).
+        Distances to intruders and sector points are divided by NEAR_DISTANCE_NORM and clipped to [0, 1] to flatten far objects which we don't care about.
+        For each obstacle, the clearance to its nearest point on the edge (negative inside the obstacle) is divided by NEAR_DISTANCE_NORM and clipped to [-1, 1]. The cosine and sine of the bearing of the nearest point relative to the heading, and the angles between the heading and its left-most and right-most tangent (divided by 180 deg), are observed.
         The destination distance is observed as (current distance to destination) / (initial destination distance): 1 at the start, 0 at the destination. It is not clipped, so that the agent can learn to avoid going further away from the destination.
-        The obstacle radii are divided by WAYPOINT_DISTANCE_MAX. 
         """
         self.intruder_distance = []
         self.intruder_cos_bearing = []
@@ -486,9 +487,11 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
         self.destination_waypoint_drift = []
 
         # obstacles 
-        self.obstacle_centre_distance = []
-        self.obstacle_centre_cos_bearing = []
-        self.obstacle_centre_sin_bearing = []
+        self.obstacle_clearance = []
+        self.obstacle_nearest_cos_bearing = []
+        self.obstacle_nearest_sin_bearing = []
+        self.obstacle_left_edge = []
+        self.obstacle_right_edge = []
 
         # sector polygon edges observation
         self.sector_points_distance = []
@@ -534,16 +537,13 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
 
         # obstacles observations
         for obs_idx in range(NUM_OBSTACLES):
-            obs_centre_qdr, obs_centre_dis = bs.tools.geo.kwikqdrdist(bs.traf.lat, bs.traf.lon, self.obstacle_centre_lat[obs_idx], self.obstacle_centre_lon[obs_idx])
-            obs_centre_dis = obs_centre_dis * NM2KM #KM        
-
-            bearing = bs.traf.hdg - obs_centre_qdr
-            for bearing_idx in range(len(bearing)):
-                bearing[bearing_idx] = fn.bound_angle_positive_negative_180(bearing[bearing_idx])
-
-            self.obstacle_centre_distance.append(obs_centre_dis)
-            self.obstacle_centre_cos_bearing.append(np.cos(np.deg2rad(bearing)))
-            self.obstacle_centre_sin_bearing.append(np.sin(np.deg2rad(bearing)))
+            # clearance to the nearest point of the obstacle polygon (negative inside), bearing of that point and left/right tangents, per aircraft
+            polygon_obs = [fn.polygon_observation(bs.traf.lat[i], bs.traf.lon[i], bs.traf.hdg[i], bs.traf.alt[i], self.obstacle_names[obs_idx], self.obstacle_vertices[obs_idx]) for i in range(len(bs.traf.lat))]
+            self.obstacle_clearance.append(np.array([o[0] for o in polygon_obs]))
+            self.obstacle_nearest_cos_bearing.append(np.array([o[1] for o in polygon_obs]))
+            self.obstacle_nearest_sin_bearing.append(np.array([o[2] for o in polygon_obs]))
+            self.obstacle_left_edge.append(np.array([o[3] for o in polygon_obs]))
+            self.obstacle_right_edge.append(np.array([o[4] for o in polygon_obs]))
 
         # Get vertices and points along the edges of the sector
         sector_points = self._get_observation_polygon_edges(self.poly_points_lat_lon, TOTAL_OBSERVATION_POINTS)
@@ -572,11 +572,12 @@ class CentralisedStaticObstacleSectorCREnv(gym.Env):
                 "destination_waypoint_distance": np.array(self.destination_waypoint_distance).reshape(-1)/self.initial_destination_distance,
                 "destination_waypoint_cos_drift": np.array(self.destination_waypoint_cos_drift).reshape(-1),
                 "destination_waypoint_sin_drift": np.array(self.destination_waypoint_sin_drift).reshape(-1),
-                # observations on obstacles (distance - radius is the clearance to the obstacle boundary)
-                "restricted_area_radius": np.array(self.obstacle_radius).reshape(-1) * NM2KM / WAYPOINT_DISTANCE_MAX, #km
-                "restricted_area_distance": np.clip(np.array(self.obstacle_centre_distance).reshape(-1)/NEAR_DISTANCE_NORM, 0, 1),
-                "cos_difference_restricted_area_pos": np.array(self.obstacle_centre_cos_bearing).reshape(-1),
-                "sin_difference_restricted_area_pos": np.array(self.obstacle_centre_sin_bearing).reshape(-1),
+                # observations on obstacles: clearance to the nearest point of the polygon (positive when outside, negative when inside), bearing of that point, left/right tangent angles
+                "restricted_area_left_edge": np.array(self.obstacle_left_edge).reshape(-1),
+                "restricted_area_right_edge": np.array(self.obstacle_right_edge).reshape(-1),
+                "restricted_area_distance": np.clip(np.array(self.obstacle_clearance).reshape(-1)/NEAR_DISTANCE_NORM, -1, 1),
+                "cos_difference_restricted_area_pos": np.array(self.obstacle_nearest_cos_bearing).reshape(-1),
+                "sin_difference_restricted_area_pos": np.array(self.obstacle_nearest_sin_bearing).reshape(-1),
                 # observations on sector polygon edges and points along the edges
                 "sector_points_distance": np.clip(np.array(self.sector_points_distance).reshape(-1)/NEAR_DISTANCE_NORM, 0, 1),
                 "sector_points_cos_drift": np.array(self.sector_points_cos_drift).reshape(-1),
