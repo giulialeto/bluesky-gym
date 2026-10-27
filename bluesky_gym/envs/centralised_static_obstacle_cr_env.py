@@ -202,23 +202,19 @@ class CentralisedStaticObstacleCREnv(gym.Env):
 
                 aircraft_lat, aircraft_lon = fn.get_point_at_distance(CENTER[0], CENTER[1], aircraft_dis_from_reference, aircraft_hdg_from_reference)
 
-                bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
-
-                ac_idx = bs.traf.id2idx(aircraft_name)
-
                 inside_temp = []
                 for j in range(NUM_OBSTACLES):
-                    inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], bs.traf.lat, bs.traf.lon, bs.traf.alt)[-1])
+                    inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], np.array([aircraft_lat]), np.array([aircraft_lon]), np.array([ALTITUDE_M]))[0])
 
                 check_if_inside_obs = any(x == True for x in inside_temp)
                 # the aircraft's initial position needs to be further than OBSTACLE_CLEARANCE_MIN from the obstacles, to avoid a certain crash at the beginning of the scenario. For simplicity, obstacles are approximated as circles of radius R around their centre.
-                too_close_to_obstacle = fn.distance_to_obstacles(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat, self.obstacle_centre_lon, self.obstacle_radius)[0] < OBSTACLE_CLEARANCE_MIN
+                too_close_to_obstacle = fn.distance_to_obstacles(aircraft_lat, aircraft_lon, self.obstacle_centre_lat, self.obstacle_centre_lon, self.obstacle_radius)[0] < OBSTACLE_CLEARANCE_MIN
 
                 too_close_to_other_ac = False
                 for other_name in self.aircraft_names[:i]:
                     other_idx = bs.traf.id2idx(other_name)
                     _, sep_dist = bs.tools.geo.kwikqdrdist(
-                        bs.traf.lat[ac_idx], bs.traf.lon[ac_idx],
+                        aircraft_lat, aircraft_lon,
                         bs.traf.lat[other_idx], bs.traf.lon[other_idx],
                     )
                     if sep_dist < INTRUSION_DISTANCE:
@@ -226,8 +222,9 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                         break
 
                 check_if_invalid = check_if_inside_obs or too_close_to_obstacle or too_close_to_other_ac
-                if check_if_invalid:
-                    bs.traf.delete(ac_idx)
+                # only create the aircraft in BlueSky once its position is accepted
+                if not check_if_invalid:
+                    bs.traf.cre(acid=aircraft_name,actype="A320",aclat=aircraft_lat, aclon=aircraft_lon, acspd=AC_SPD_CAS_MS, acalt=ALTITUDE_M) # not a stack command: altitude in meters, speed in m/s (CAS)
 
                 if loop_counter > 50:
                     raise Exception("No aircraft can be generated further than OBSTACLE_CLEARANCE_MIN away from the obstacles and outside other aircraft's protected zones. Check the parameters of the obstacles/aircraft in the definition of the scenario.")
