@@ -120,7 +120,6 @@ class StaticObstacleSectorCREnv(gym.Env):
         self.exited_sector = 0
         self.average_drift = np.array([])
 
-        self._generate_sector() # Create airspace polygon
         self.obstacle_names = []
 
         self.window = None
@@ -140,6 +139,8 @@ class StaticObstacleSectorCREnv(gym.Env):
         self.exited_sector = 0
         self.average_drift = np.array([])
         self.impossible_route_counter = 0
+
+        self._generate_sector() # Create a new random airspace polygon every episode (seeded through self.np_random)
 
         # bs.tools.areafilter.deleteArea(self.poly_name)
 
