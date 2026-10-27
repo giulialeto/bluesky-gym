@@ -226,7 +226,7 @@ class StaticObstacleCREnv(gym.Env):
                         path_points[j][0], path_points[j][1],
                         path_points[j+1][0], path_points[j+1][1]
                     )
-                    self.planned_path_length += seg_dis * NM2KM  # km
+                    self.planned_path_length += seg_dis  # NM
 
                 self.sample_entire_scenario = False  # Success
 
@@ -286,7 +286,7 @@ class StaticObstacleCREnv(gym.Env):
 
             ac_idx = bs.traf.id2idx('KL001')
             _, dist = bs.tools.geo.kwikqdrdist(prev_lat, prev_lon, bs.traf.lat[ac_idx], bs.traf.lon[ac_idx])
-            self.actual_path_length += dist * NM2KM  # km
+            self.actual_path_length += dist  # NM
 
 
             observation = self._get_obs()
@@ -705,7 +705,7 @@ class StaticObstacleCREnv(gym.Env):
             'path_length_ratio': self.actual_path_length / self.planned_path_length if self.planned_path_length > 0 else None,
             'actual_path_length': self.actual_path_length,
             'planned_path_length': self.planned_path_length,
-            'planned_path_time': (self.planned_path_length * 1000) / self.planned_path_tas if self.planned_path_length > 0 and self.planned_path_tas > 0 else None,  # seconds: planned length (km) at the TAS used by the planner (m/s)
+            'planned_path_time': (self.planned_path_length * NM2KM * 1000) / self.planned_path_tas if self.planned_path_length > 0 and self.planned_path_tas > 0 else None,  # seconds: planned length (NM, converted to m) at the TAS used by the planner (m/s)
 
             'reward_vector': self.last_reward_vector.copy(),
             'reward_components': [
