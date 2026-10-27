@@ -24,6 +24,8 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
+# Minimum distance from an aircraft's starting position to every obstacle. Aircraft closer than this are resampled.
+OBSTACLE_CLEARANCE_MIN = 30 # KM
 
 # Normalisation factor for the observation of obstacles distances
 NEAR_DISTANCE_NORM = 150 # KM
@@ -202,11 +204,14 @@ class CentralisedStaticObstacleEnv(gym.Env):
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], bs.traf.lat, bs.traf.lon, bs.traf.alt)[-1])
 
                 check_if_inside_obs = any(x == True for x in inside_temp)
+                # the aircraft's initial position needs to be further than OBSTACLE_CLEARANCE_MIN from the obstacles, to avoid a certain crash at the beginning of the scenario. For simplicity, obstacles are approximated as circles of radius R around their centre.
+                too_close_to_obstacle = fn.distance_to_obstacles(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat, self.obstacle_centre_lon, self.obstacle_radius)[0] < OBSTACLE_CLEARANCE_MIN
+                check_if_inside_obs = check_if_inside_obs or too_close_to_obstacle # resample if inside an obstacle or too close to one
                 if check_if_inside_obs:
                     bs.traf.delete(ac_idx)
 
                 if loop_counter > 50:
-                    raise Exception("No aircraft can be generated outside the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
+                    raise Exception("No aircraft can be generated further than OBSTACLE_CLEARANCE_MIN away from the obstacles. Check the parameters of the obstacles in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
         poly_area = self.np_random.integers(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1]) # NM^2
@@ -257,7 +262,7 @@ class CentralisedStaticObstacleEnv(gym.Env):
             obstacle_names.append(poly_name)
             obstacle_vertices.append(obstacle_vertices_coordinates)
             obstacle_radius.append(R)
-
+            
         for i in range(NUM_OBSTACLES):
             overlap_list = []  # List to store overlap information
             # Check for overlaps with existing obstacles

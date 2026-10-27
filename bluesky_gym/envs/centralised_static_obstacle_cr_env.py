@@ -24,6 +24,8 @@ WAYPOINT_DISTANCE_MAX = 400 # KM
 
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
+# Minimum distance from an aircraft's starting position to every obstacle. Aircraft closer than this are resampled.
+OBSTACLE_CLEARANCE_MIN = 30 # KM
 
 # Normalisation factor for the observation of obstacles and intruders distances
 NEAR_DISTANCE_NORM = 150 # KM
@@ -190,9 +192,8 @@ class CentralisedStaticObstacleCREnv(gym.Env):
 
             check_if_invalid = True
             loop_counter = 0
-            # resample until the new aircraft lands outside every obstacle AND
-            # outside the protected zone (INTRUSION_DISTANCE) of every aircraft
-            # already placed this episode
+            # resample until the new aircraft lands at least OBSTACLE_CLEARANCE_MIN from every obstacle AND
+            # outside the protected zone (INTRUSION_DISTANCE) of every aircraft already placed this episode
             while check_if_invalid:
                 loop_counter+= 1
 
@@ -210,6 +211,8 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                     inside_temp.append(bs.tools.areafilter.checkInside(self.obstacle_names[j], bs.traf.lat, bs.traf.lon, bs.traf.alt)[-1])
 
                 check_if_inside_obs = any(x == True for x in inside_temp)
+                # the aircraft's initial position needs to be further than OBSTACLE_CLEARANCE_MIN from the obstacles, to avoid a certain crash at the beginning of the scenario. For simplicity, obstacles are approximated as circles of radius R around their centre.
+                too_close_to_obstacle = fn.distance_to_obstacles(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat, self.obstacle_centre_lon, self.obstacle_radius)[0] < OBSTACLE_CLEARANCE_MIN
 
                 too_close_to_other_ac = False
                 for other_name in self.aircraft_names[:i]:
@@ -222,12 +225,12 @@ class CentralisedStaticObstacleCREnv(gym.Env):
                         too_close_to_other_ac = True
                         break
 
-                check_if_invalid = check_if_inside_obs or too_close_to_other_ac
+                check_if_invalid = check_if_inside_obs or too_close_to_obstacle or too_close_to_other_ac
                 if check_if_invalid:
                     bs.traf.delete(ac_idx)
 
                 if loop_counter > 50:
-                    raise Exception("No aircraft can be generated outside the obstacles and outside other aircraft's protected zones. Check the parameters of the obstacles/aircraft in the definition of the scenario.")
+                    raise Exception("No aircraft can be generated further than OBSTACLE_CLEARANCE_MIN away from the obstacles and outside other aircraft's protected zones. Check the parameters of the obstacles/aircraft in the definition of the scenario.")
 
     def _generate_polygon(self, centre):
         poly_area = self.np_random.integers(POLY_AREA_RANGE[0]*2, POLY_AREA_RANGE[1]) # NM^2

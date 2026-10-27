@@ -20,6 +20,8 @@ WAYPOINT_DISTANCE_MAX = 170 # KM
 
 OBSTACLE_DISTANCE_MIN = 20 # KM
 OBSTACLE_DISTANCE_MAX = 150 # KM
+# Minimum distance from an aircraft's starting position to every obstacle. Aircraft closer than this are resampled.
+OBSTACLE_CLEARANCE_MIN = 30 # KM
 
 # Normalisation factor for the observation of obstacles distances
 NEAR_DISTANCE_NORM = 150 # KM
@@ -191,12 +193,23 @@ class StaticObstacleEnv(gym.Env):
         obstacle_dict = {}  # Initialize the dictionary to store obstacles for overlap checking
         ac_idx = bs.traf.id2idx(acid)
 
+        # generate the polygon (vertices and radius) of every obstacle
+        obstacle_points = []
         for i in range(NUM_OBSTACLES):
-
             centre_obst = (self.obstacle_centre_lat[i], self.obstacle_centre_lon[i])
             _, p, R = self._generate_polygon(centre_obst)
-            
-            points = [coord for point in p for coord in point] # Flatten the list of points
+            obstacle_points.append([coord for point in p for coord in point]) # Flatten the list of points
+            obstacle_radius.append(R)
+
+        # the aircraft's initial position needs to be further than OBSTACLE_CLEARANCE_MIN from the obstacles, to avoid a certain crash at the beginning of the scenario. For simplicity, obstacles are approximated as circles of radius R around their centre.
+        # This also rejects an ownship that starts inside an obstacle. Resample before defining any area in BlueSky.
+        too_close = fn.distance_to_obstacles(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], self.obstacle_centre_lat, self.obstacle_centre_lon, obstacle_radius)[0] < OBSTACLE_CLEARANCE_MIN
+        if too_close:
+            self.sample_obstacle = True
+            return
+
+        for i in range(NUM_OBSTACLES):
+            points = obstacle_points[i]
             poly_name = 'restricted_area_' + str(i+1)
             bs.tools.areafilter.defineArea(poly_name, 'POLY', points)
 
@@ -211,7 +224,6 @@ class StaticObstacleEnv(gym.Env):
 
             obstacle_names.append(poly_name)
             obstacle_vertices.append(obstacle_vertices_coordinates)
-            obstacle_radius.append(R)
 
         for i in range(NUM_OBSTACLES):
             overlap_list = []  # List to store overlap information

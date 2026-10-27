@@ -185,6 +185,30 @@ def get_hdg(point1: np.array, point2: np.array) -> float:
     return hdg
 
 
+def distance_to_obstacles(ac_lat, ac_lon, centre_lat, centre_lon, radius_nm):
+    """ Distance from one or more points to the nearest obstacle, where every obstacle is approximated by the circle
+    it was generated in (centre and radius R). The polygon vertices lie on that circle, so the circle contains the polygon
+    and this distance is never larger than the true distance to the polygon.
+    This is cheaper than the exact distance to the polygon boundary: one distance per point-obstacle pair instead of one per edge.
+
+    Input:
+        ac_lat, ac_lon: scalar or array shape (P,) -> aircraft latitude(s) and longitude(s) [degrees, degrees]
+        centre_lat, centre_lon: scalar or array shape (K,) -> obstacle centre(s) latitude(s) and longitude(s) [degrees, degrees]
+        radius_nm: scalar or array shape (K,) -> obstacle(s) radius [NM]
+    Returns:
+        distance_km: np.ndarray, shape (P,) -> distance to the circle edge of the nearest obstacle [km]; negative if inside a circle. """
+    
+    lat = np.atleast_1d(np.asarray(ac_lat, dtype=float))
+    lon = np.atleast_1d(np.asarray(ac_lon, dtype=float))
+    c_lat = np.atleast_1d(np.asarray(centre_lat, dtype=float))
+    c_lon = np.atleast_1d(np.asarray(centre_lon, dtype=float))
+    radius = np.atleast_1d(np.asarray(radius_nm, dtype=float))
+    lat_a, lon_a, lat_b, lon_b = np.broadcast_arrays(lat[:, None], lon[:, None], c_lat[None, :], c_lon[None, :])
+    _, dist_nm = kwikqdrdist(lat_a.ravel(), lon_a.ravel(), lat_b.ravel(), lon_b.ravel())  # NM, shape (P*K,)
+    dist_nm = dist_nm.reshape(lat_a.shape)
+    return (dist_nm - radius[None, :]).min(axis=1) * nm / 1000.  # NM -> km
+
+
 def polygon_observation(ac_lat: float, ac_lon: float, ac_hdg: float, ac_alt: float, area_name: str, vertices):
     """ Observation of a (convex) polygonal obstacle as seen from the aircraft.
     The observation consists of:
