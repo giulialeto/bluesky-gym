@@ -282,34 +282,26 @@ class CentralisedStaticObstacleCREnv(gym.Env):
             obstacle_vertices.append(obstacle_vertices_coordinates)
             obstacle_radius.append(R)
 
+        # points used for checking overlaps between obstacles: every vertex and 15 points along every edge of each obstacle
+        obstacle_check_points = []
+        for vertices in obstacle_vertices:
+            edge_points = []
+            for k in range(len(vertices)):
+                edge_points.extend(self._interpolate_along_obstacle_vertices(vertices[k], vertices[(k+1) % len(vertices)]))
+            obstacle_check_points.append(np.array(edge_points))
+
         for i in range(NUM_OBSTACLES):
             overlap_list = []  # List to store overlap information
-            # Check for overlaps with existing obstacles
+            # Check for overlaps with the other obstacles: one checkInside call per obstacle pair
             for j in range(NUM_OBSTACLES):
                 if i == j:
                     continue  # Skip checking the same obstacle
 
-                found_overlap = False
-                for k in range(0, len(obstacle_vertices[j])):
-                    # check if the vertices of the obstacle are inside the other obstacles
-                    overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(obstacle_vertices[j][k][0]), np.array(obstacle_vertices[j][k][1]), np.array([ALTITUDE_M]))[0]
-                    if overlap:
-                        overlap_list.append(obstacle_names[j])
-                        break #break vertex loop
-                    # check if points along the edges of the obstacle are inside the other obstacles
-                    if k == len(obstacle_vertices[j]) -1:
-                        interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][0])
-                    else:
-                        interpolated_points = self._interpolate_along_obstacle_vertices(obstacle_vertices[j][k], obstacle_vertices[j][k+1])
-                    for point in interpolated_points:
-                        overlap = bs.tools.areafilter.checkInside(obstacle_names[i], np.array(point[0]), np.array(point[1]), np.array([ALTITUDE_M]))[0]
-                        if overlap:
-                            overlap_list.append(obstacle_names[j])
-                            found_overlap = True
-                            break # break interpolation loop
-                    if found_overlap:
-                        break
-        
+                points_j = obstacle_check_points[j]
+                overlap = bs.tools.areafilter.checkInside(obstacle_names[i], points_j[:, 0], points_j[:, 1], np.full(len(points_j), ALTITUDE_M))
+                if overlap.any():
+                    overlap_list.append(obstacle_names[j])
+
             obstacle_dict[obstacle_names[i]] = overlap_list
         
         max_overlaps_allowed = 1
