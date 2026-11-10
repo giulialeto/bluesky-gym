@@ -12,12 +12,17 @@ from gymnasium import spaces
 from shapely.geometry import Polygon
 
 DISTANCE_MARGIN = 5 # km
-REACH_REWARD = 5 # reach set waypoint
+
+# Scales that bring the two components of the reward vector to comparable values (measured with random, straight and goal-seeking policies) for MORL training (there, the balance between the two components is encoded in the weights)
+REWARD_SCALE_REACH_PROGRESS_MORL = 1 # for training without MORL, set this scale to 1. For MORL training, set this scale to 10, so that the reach/progress reward is comparable to the intrusion penalty
+REWARD_SCALE_INTRUSION_MORL = 1 # for training without MORL, set this scale to 1. For MORL training, set this scale to 5, so that the intrusion penalty is comparable to the reach/progress reward
+
+REACH_REWARD = 5 / REWARD_SCALE_REACH_PROGRESS_MORL # reach set waypoint
 
 DRIFT_PENALTY = -0.01
-AC_INTRUSION_PENALTY = -5
-RESTRICTED_AREA_INTRUSION_PENALTY = -5
-PROGRESS_REWARD_WEIGHT = 0.5
+AC_INTRUSION_PENALTY = -5 / REWARD_SCALE_INTRUSION_MORL
+RESTRICTED_AREA_INTRUSION_PENALTY = -5 / REWARD_SCALE_INTRUSION_MORL
+PROGRESS_REWARD_WEIGHT = 0.5 / REWARD_SCALE_REACH_PROGRESS_MORL
 
 WAYPOINT_DISTANCE_MIN = 180 # KM
 WAYPOINT_DISTANCE_MAX = 400 # KM
